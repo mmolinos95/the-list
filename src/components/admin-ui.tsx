@@ -116,7 +116,7 @@ export function ConfirmButton({
             <Button
               kind={confirmKind ?? (kind === "danger" ? "danger" : "primary")}
               disabled={pending}
-              className="flex-1"
+              className="sm:flex-1"
               onClick={() =>
                 run(action, (r) => {
                   setOpen(false);
@@ -126,7 +126,7 @@ export function ConfirmButton({
             >
               {pending ? "Working…" : confirm}
             </Button>
-            <Button kind="ghost" className="flex-1" onClick={() => setOpen(false)} type="button">
+            <Button kind="ghost" className="sm:flex-1" onClick={() => setOpen(false)} type="button">
               Never mind
             </Button>
           </div>

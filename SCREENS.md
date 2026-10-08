@@ -81,14 +81,16 @@ The body changes with the practice's stage:
 
 ### B0. Log in (`/admin/login`)
 - One field: "Your email". Button: **SEND ME A LOGIN LINK**.
-- Always replies "If you're on the board, a login link is on its way.", so it doesn't reveal who has access.
-- No passwords.
+- Always replies "If you're on the board, a login email is on its way.", so it doesn't reveal who has access.
+- The email has a link **and a code** (8 digits, shown "1234 5678"). After sending, the page shows "Or type the code from the email": for the home-screen app (on iPhone it doesn't share Safari's login) or when the email is on another device. Five wrong codes and that code stops working until a new email is sent.
+- No passwords. Sessions last until you log out.
+- **Home-screen app:** the board installs like an app (web app manifest scoped to `/admin`, opens on Practices). The home screen shows a one-time tip on phones: an **Install** button on Android, "Share → Add to Home Screen" on iPhone.
 
 ### B1. Practices home (`/admin`): a to-do list, not a dashboard
 - Bottom nav (sidebar on desktop): **Practices · Schedule · Late drops · Board**
 - One card per upcoming practice, in date order, each with its status and **the one thing it needs next**:
   - Sign-ups open by hand and it isn't open yet: **OPEN SIGN-UPS**
-  - Open: counts ("Skills 31/40 · Games 40/40 + 3 waiting"), button **VIEW**
+  - Open: counts ("Skills 31/40 · Games 40/40 + 3 waiting"), button **VIEW**, plus **SHARE** (WhatsApp) and **COPY POST**
   - Locked and the Games list has no teams yet: **BUILD TEAMS**
   - Teams sent: "Teams sent ✓"
   - Late drops: red chip "2 LATE DROPS"
@@ -97,7 +99,7 @@ The body changes with the practice's stage:
 
 ### B2. Practice detail (`/admin/p/<date-day>`)
 - Header: practice info + stage chip.
-- **Sign-up link** card while the practice is coming up: **COPY WHATSAPP POST** (ready to paste, in the club's format) and **COPY LINK**. "Only people with this link can sign up. It stops working when the practice ends." The home screen cards have a **COPY POST** button too.
+- **Sign-up link** card while the practice is coming up: **SHARE TO WHATSAPP** (opens WhatsApp with the post typed in, in the club's format; you pick the group), then **COPY POST** and **COPY LINK**. "Only people with this link can sign up. It stops working when the practice ends." The home screen cards have a **COPY POST** button too.
 
   ```
   List Sign Up: 10/9 Friday Practice
@@ -127,7 +129,7 @@ The body changes with the practice's stage:
 - Preview of the email in brand style, then **SEND TO 34 PLAYERS**.
 
 ### B5. Cancel practice
-- Optional reason ("Field closed for rain").
+- "Why? (optional)" with one-tap reasons, **Low attendance · Bad weather · Field unavailable**, or your own words. The reason is in the email and on the practice page.
 - Confirm sheet: "Cancel Wednesday practice? We'll email the 43 people signed up. This can't be undone." **CANCEL PRACTICE**
 
 ### B6. Team builder (`/admin/p/<date-day>/teams`)
@@ -165,6 +167,14 @@ Uses the main list of every list marked "Split into teams" (Games).
 
 ---
 
+### B10. One-tap actions from email (`/admin/act/<link>`)
+Routine actions without logging in, from buttons in board emails:
+- Late-drop email → **PROMOTE THE NEXT PERSON**: the page names who's next on that list's waitlist ("Move Ana up?"), then **PROMOTE ANA**. Before the lock it says the waitlist still moves on its own; with nobody waiting, it says so.
+- Morning email → **CANCEL THIS PRACTICE**: the B5 sheet as a page (reason chips, how many get emailed), then **CANCEL PRACTICE**. Not offered once the practice has started.
+- Opening the link changes nothing; the button does (email scanners open links). Each link is signed for one board member and one practice, expires (promote: when the practice ends; cancel: when it starts), and stops working if that person leaves the board.
+
+---
+
 ## Key flows
 
 **1. A normal Wednesday (fully automatic)**
@@ -194,5 +204,6 @@ Outgoing president → Board → Invite incoming board (new presidents as PRESID
 | Practice is off | Everyone on the lists + waitlist | Cancel practice |
 | Practice changed | Everyone on the list | Edit practice with the email box ticked |
 | Message from the board | Chosen recipients | Message the list |
-| Late drop heads-up | All board members | Drop after the lock |
-| Login link / board invite | Board member | Login, invite (Supabase Auth sent through the club Gmail) |
+| Late drop heads-up, with **Promote the next person** | All board members | Drop after the lock |
+| Morning email: today's counts + **Cancel this practice**; on opening days, the WhatsApp post + **Share to WhatsApp** | All board members | Daily job, 6 AM, only on days with a practice or a sign-up opening |
+| Login link + code / board invite | Board member | Login, invite (Supabase Auth sent through the club Gmail) |

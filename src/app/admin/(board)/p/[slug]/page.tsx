@@ -8,7 +8,7 @@ import { getAdminPractice } from "@/lib/admin-data";
 import { requireBoard } from "@/lib/auth";
 import { shareFor } from "@/lib/share";
 import { clock, monthDay, timeRange, toLocalInputs, weekdayLong } from "@/lib/time";
-import { CopyButton } from "../../buttons";
+import { CopyButton, WhatsAppButton } from "../../buttons";
 import { AdminStageChip } from "../../summary";
 import { PracticeAdmin } from "./practice-admin";
 
@@ -63,8 +63,9 @@ async function Detail({ params }: { params: Promise<{ slug: string }> }) {
           <Label>Sign-up link</Label>
           <p className="mt-1 truncate text-sm text-muted">{share.url}</p>
           <p className="mt-1 text-xs text-muted">Only people with this link can sign up. It stops working when the practice ends.</p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <CopyButton text={share.post} label="Copy WhatsApp post" kind="primary" />
+          <WhatsAppButton href={share.whatsapp} className="mt-3 w-full" />
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <CopyButton text={share.post} label="Copy post" />
             <CopyButton text={share.url} label="Copy link" />
           </div>
         </Card>

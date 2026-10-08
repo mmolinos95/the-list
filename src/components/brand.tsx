@@ -1,11 +1,11 @@
 // The crest: a shield that is also a list. Two gold checks are confirmed
 // spots; the dashed ring is the waitlist. Drawn from the Figma brand file.
 
-export function Crest({ onBlue = false, className = "" }: { onBlue?: boolean; className?: string }) {
+export function Crest({ onBlue = false, className = "", width, height }: { onBlue?: boolean; className?: string; width?: number; height?: number }) {
   const shield = onBlue ? "#FFFFFF" : "#B9D9EB";
   const bar = onBlue ? "#B9D9EB" : "#FFFFFF";
   return (
-    <svg viewBox="0 0 120 140" className={className} aria-hidden="true">
+    <svg viewBox="0 0 120 140" className={className} width={width} height={height} aria-hidden="true">
       <path
         d="M60 4L112 18V70C112 104 88 126 60 136C32 126 8 104 8 70V18L60 4Z"
         fill={shield}

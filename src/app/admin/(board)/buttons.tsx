@@ -2,7 +2,7 @@
 
 import { ConfirmButton, Flash, useAction } from "@/components/admin-ui";
 import { useState } from "react";
-import { Button, type ButtonKind } from "@/components/ui";
+import { Button, buttonClass, type ButtonKind } from "@/components/ui";
 import { openSignups, retryFailedEmails } from "../actions";
 
 export function OpenSignupsButton({ eventId, className = "" }: { eventId: string; className?: string }) {
@@ -37,6 +37,15 @@ export function CopyButton({ text, label, kind = "outline", className = "" }: { 
     >
       {copied ? "Copied ✓" : label}
     </Button>
+  );
+}
+
+/** Opens WhatsApp (the app on phones, WhatsApp Web on computers) with the post ready to send. */
+export function WhatsAppButton({ href, label = "Share to WhatsApp", kind = "primary", className = "" }: { href: string; label?: string; kind?: ButtonKind; className?: string }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={buttonClass(kind, className)}>
+      {label}
+    </a>
   );
 }
 

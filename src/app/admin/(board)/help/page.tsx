@@ -27,15 +27,18 @@ export default function HelpPage() {
           Practices come from the <TextLink href="/admin/schedule">weekly schedule</TextLink> and show up two weeks ahead. Sign-ups open on their own (usually 9 AM the day before).
         </p>
         <p>
-          <b>Post each practice in WhatsApp.</b> Open it (or use the home screen) and press <b>Copy WhatsApp post</b>, then paste it in the group. Every practice has its own sign-up link that only works until the practice ends, so people outside the group can&apos;t sign up.
+          <b>Post each practice in WhatsApp.</b> Press <b>Share to WhatsApp</b> on the practice (or <b>Share</b> on the home screen): WhatsApp opens with the post ready, you pick the group and send. Every practice has its own sign-up link that only works until the practice ends, so people outside the group can&apos;t sign up.
         </p>
         <p>When a list is full, new sign-ups go to the waitlist. If someone drops out, the first person waiting moves up and gets an email.</p>
+        <p>
+          <b>The morning email</b> (6 AM) reminds you: on practice days it shows the counts with a <b>Cancel this practice</b> button, and on days sign-ups open it has the WhatsApp post with a share button.
+        </p>
       </Section>
 
       <Section title="The lock, 2 hours before kickoff">
         <p>The list locks 2 hours before kickoff (the first list&apos;s start, so 8 AM on a Friday with Skills at 10). Nobody new can sign up, and the waitlist stops moving up on its own.</p>
         <p>
-          Members can still drop out, but it counts as a <TextLink href="/admin/drops">late drop</TextLink>: the board gets an email, and you can promote someone from the waitlist on the practice page.
+          Members can still drop out, but it counts as a <TextLink href="/admin/drops">late drop</TextLink>: the board gets an email with a <b>Promote the next person</b> button, or you can promote someone on the practice page.
         </p>
       </Section>
 
@@ -53,7 +56,7 @@ export default function HelpPage() {
         <ul className="list-disc space-y-1 pl-5">
           <li><b>Edit this practice</b>: new date, place, or each list&apos;s time and cap for that day. Tick <b>Also use for future Fridays</b> (or whichever day) to change the weekly schedule too.</li>
           <li><b>Message the list</b>: an email to everyone signed up.</li>
-          <li><b>Cancel practice</b>: emails everyone and shows “Practice is off”.</li>
+          <li><b>Cancel practice</b>: pick a reason (low attendance, weather, no field) or write one. Everyone on the list gets an email with it, and the page shows “Practice is off”.</li>
         </ul>
         <p>Walk-ins: on the practice page, press <b>+ ADD SOMEONE</b>. Email and phone are optional.</p>
       </Section>
@@ -69,6 +72,8 @@ export default function HelpPage() {
       <Section title="Good to know">
         <ul className="list-disc space-y-1 pl-5">
           <li>Every email comes from the club Gmail. Members get a personal drop-out link that only works for them.</li>
+          <li>Buttons in board emails (promote, cancel) work without logging in, only for you, and always ask once more before doing anything.</li>
+          <li>On your phone, add The List to your home screen (Share → Add to Home Screen on iPhone). Log in there with the code from the login email.</li>
           <li>Members who haven&apos;t signed up in 12 months are deleted automatically, with their history.</li>
           <li>If emails fail (Gmail limits are about 500 a day), the home screen shows a <b>Retry</b> button.</li>
           <li>The technical setup is in the README on GitHub.</li>

@@ -14,6 +14,14 @@ export type EmailContext = {
   dropUrl?: string;
   /** The practice page with its sign-up key, for emails about a practice. */
   practiceUrl?: string;
+  /** One-tap action links (no login) for emails sent to a board member. See lib/board-action.ts. */
+  act?: (action: { a: "promote"; e: string; l: string; x: number } | { a: "cancel"; e: string; x: number }) => string;
+};
+
+/** What the daily job puts in the board's morning email. */
+export type BoardDailyPayload = {
+  today: { event: EventJson; lists: { name: string; cap: number; main: number; waitlist: number; time: string | null }[] }[];
+  opening: { event: EventJson; opens_at: string; post: string; whatsapp: string }[];
 };
 
 const C = {
@@ -247,9 +255,62 @@ const templates = {
         headline(`${d.member_name} dropped out.`) +
         p(`They left the ${esc(d.list)} list ${esc(when)} before kickoff, after the list locked, so nobody was moved up automatically.`) +
         details(eventRows(d.event)) +
-        button(`${ctx.siteUrl}/admin/p/${d.event.slug}`, "Open the practice") +
-        small("You can promote someone from the waitlist there. If teams are already out, the team builder shows the gap."),
+        (ctx.act
+          ? button(ctx.act({ a: "promote", e: d.event.id, l: d.list, x: Date.parse(d.event.ends_at) }), "Promote the next person") +
+            button(`${ctx.siteUrl}/admin/p/${d.event.slug}`, "Open the practice", "outline") +
+            small("Promoting needs no login: the button shows who's next and asks once more. If teams are already out, the team builder shows the gap.")
+          : button(`${ctx.siteUrl}/admin/p/${d.event.slug}`, "Open the practice") +
+            small("You can promote someone from the waitlist there. If teams are already out, the team builder shows the gap.")),
       text: text(`Late drop: ${d.member_name} left ${d.list}, ${when} before kickoff.`, "", `Open the practice: ${ctx.siteUrl}/admin/p/${d.event.slug}`),
+    };
+  },
+
+  board_daily(d: BoardDailyPayload, ctx: EmailContext) {
+    const todayHtml = d.today
+      .map(({ event, lists }) => {
+        const rows: [string, string][] = [
+          ...eventRows(event),
+          ...lists.map((l): [string, string] => [l.name.toUpperCase(), `${l.time ? `${l.time} · ` : ""}${l.main}/${l.cap}${l.waitlist ? ` + ${l.waitlist} waiting` : ""}`]),
+          ["LOCKS", clock(event.locks_at)],
+        ];
+        return (
+          label("TODAY") +
+          headline(`${day(event)} practice`) +
+          details(rows) +
+          button(`${ctx.siteUrl}/admin/p/${event.slug}`, "Open the practice") +
+          (ctx.act
+            ? button(ctx.act({ a: "cancel", e: event.id, x: Date.parse(event.starts_at) }), "Cancel this practice", "outline") +
+              small("Low turnout, weather, no field? Cancel from here with a reason, no login needed. Everyone on the list gets an email.")
+            : "")
+        );
+      })
+      .join("");
+    const openingHtml = d.opening
+      .map(
+        (o) =>
+          label(`SIGN-UPS OPEN TODAY AT ${clock(o.opens_at)}`) +
+          headline(`Post ${day(o.event)}'s link`) +
+          `<pre class="em-box" style="margin:0 0 20px;padding:16px 20px;border:1px solid ${C.line};border-radius:10px;background:${C.box};font-family:${BODY};font-size:14px;line-height:1.5;white-space:pre-wrap">${esc(o.post)}</pre>` +
+          button(o.whatsapp, "Share to WhatsApp") +
+          small(`The link already works: anyone who opens it before ${clock(o.opens_at)} sees a countdown.`),
+      )
+      .join(`<hr style="border:0;border-top:1px solid ${C.line};margin:28px 0">`);
+    const parts = [
+      d.today.length ? `Today: ${d.today.map((t) => `${day(t.event)} practice`).join(", ")}` : "",
+      d.opening.length ? `${d.opening.map((o) => day(o.event)).join(", ")} sign-ups open at ${clock(d.opening[0].opens_at)}` : "",
+    ].filter(Boolean);
+    return {
+      subject: parts.join(" · "),
+      html: [todayHtml, openingHtml].filter(Boolean).join(`<hr style="border:0;border-top:1px solid ${C.line};margin:28px 0">`),
+      text: text(
+        ...d.today.flatMap(({ event, lists }) => [
+          `Today: ${day(event)} practice, ${timeRange(event.starts_at, event.ends_at)}, ${event.location}`,
+          ...lists.map((l) => `${l.name}: ${l.main}/${l.cap}${l.waitlist ? ` + ${l.waitlist} waiting` : ""}`),
+          ctx.act && `Cancel: ${ctx.act({ a: "cancel", e: event.id, x: Date.parse(event.starts_at) })}`,
+          "",
+        ]),
+        ...d.opening.flatMap((o) => [`Sign-ups for ${day(o.event)} open at ${clock(o.opens_at)}. Post this in WhatsApp:`, "", o.post, ""]),
+      ),
     };
   },
 
@@ -268,13 +329,23 @@ const templates = {
 };
 
 /** The login link email. Sent directly, not through the outbox, because the link is a secret. */
-export function loginEmail(link: string, siteUrl: string): Omit<OutgoingMessage, "to"> {
+export function loginEmail(link: string, siteUrl: string, code?: string): Omit<OutgoingMessage, "to"> {
+  // "1234 5678": easier to read and type than one long run of digits.
+  const half = code ? Math.ceil(code.length / 2) : 0;
+  const spaced = code ? `${code.slice(0, half)} ${code.slice(half)}` : "";
+  const expiry = code ? "The link and code work once and expire in 1 hour." : "The link works once and expires in 1 hour.";
   return {
-    subject: "Your login link for The List",
+    subject: code ? `${spaced} is your code for The List` : "Your login link for The List",
     html: layout(
       { siteUrl },
-      headline("Here's your login link.") + button(link, "Log in to The List") + small("The link works once and expires in 1 hour. If you didn't ask for it, you can ignore this email."),
+      headline("Here's your login link.") +
+        button(link, "Log in to The List") +
+        (code
+          ? p("Using the app from your home screen, or another device? Type this code instead:") +
+            `<p class="em-box" style="margin:0 0 20px;padding:14px 20px;display:inline-block;border:1px solid ${C.line};border-radius:10px;background:${C.box};font-family:${DISPLAY};font-size:40px;letter-spacing:6px">${spaced}</p>`
+          : "") +
+        small(`${expiry} If you didn't ask for this, you can ignore this email.`),
     ),
-    text: `Log in to The List: ${link}\n\nThe link works once and expires in 1 hour.`,
+    text: text(`Log in to The List: ${link}`, code && `Or type this code: ${spaced}`, "", expiry),
   };
 }

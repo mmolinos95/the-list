@@ -7,9 +7,12 @@ import { loginEmail } from "@/lib/notify/templates";
 import { authClient, db } from "@/lib/supabase";
 import { emailSchema } from "@/lib/validate";
 
-const SENT = "If you're on the board, a login link is on its way. Check your inbox (and spam).";
+const SENT = "If you're on the board, a login email is on its way. Check your inbox (and spam).";
 
-export type LoginState = { message: string; error?: boolean } | null;
+/** After 5 wrong codes, the code stops working until a new email is sent. */
+const MAX_CODE_TRIES = 5;
+
+export type LoginState = { message: string; error?: boolean; email?: string } | null;
 
 /**
  * B0. Always gives the same answer, so the form never reveals who is on the
@@ -23,11 +26,11 @@ export async function sendLoginLink(_prev: LoginState, form: FormData): Promise<
   const supabase = db();
 
   const { data: member } = await supabase.from("board_members").select("id, last_login_link_at").eq("email", email).maybeSingle();
-  if (!member) return { message: SENT };
+  if (!member) return { message: SENT, email };
 
   // One link a minute per person, so the form can't be used to flood an inbox.
-  if (member.last_login_link_at && Date.now() - Date.parse(member.last_login_link_at) < 60_000) return { message: SENT };
-  await supabase.from("board_members").update({ last_login_link_at: new Date().toISOString() }).eq("id", member.id);
+  if (member.last_login_link_at && Date.now() - Date.parse(member.last_login_link_at) < 60_000) return { message: SENT, email };
+  await supabase.from("board_members").update({ last_login_link_at: new Date().toISOString(), login_code_attempts: 0 }).eq("id", member.id);
 
   let link = await supabase.auth.admin.generateLink({ type: "magiclink", email });
   const user = link.data?.user;
@@ -46,12 +49,37 @@ export async function sendLoginLink(_prev: LoginState, form: FormData): Promise<
 
   const url = `${env.siteUrl}/admin/auth/confirm?token_hash=${encodeURIComponent(link.data.properties.hashed_token)}`;
   try {
-    await emailChannel().send({ to: email, ...loginEmail(url, env.siteUrl) });
+    await emailChannel().send({ to: email, ...loginEmail(url, env.siteUrl, link.data.properties.email_otp) });
   } catch (err) {
     console.error("Login email failed", err);
     return { message: "We couldn't send the email right now. Try again in a minute.", error: true };
   }
-  return { message: SENT };
+  return { message: SENT, email };
+}
+
+export type CodeState = { error: string } | null;
+
+/**
+ * The code from the login email. For the home-screen app, which keeps
+ * its own login separate from the browser the email link opens in.
+ */
+export async function confirmCode(_prev: CodeState, form: FormData): Promise<CodeState> {
+  const email = emailSchema.safeParse(form.get("email"));
+  const code = String(form.get("code") ?? "").replace(/\D/g, "");
+  const wrong = { error: "That code didn't work. Check the latest email, or send a new one." };
+  // Supabase sets the length (6 to 10 digits; this project uses 8).
+  if (!email.success || code.length < 6 || code.length > 10) return wrong;
+
+  const supabase = db();
+  const { data: member } = await supabase.from("board_members").select("id, login_code_attempts").eq("email", email.data).maybeSingle();
+  if (!member) return wrong;
+  if (member.login_code_attempts >= MAX_CODE_TRIES) return { error: "Too many tries. Send yourself a new login email." };
+  await supabase.from("board_members").update({ login_code_attempts: member.login_code_attempts + 1 }).eq("id", member.id);
+
+  const { error } = await (await authClient()).auth.verifyOtp({ type: "email", email: email.data, token: code });
+  if (error) return wrong;
+  await supabase.from("board_members").update({ login_code_attempts: 0 }).eq("id", member.id);
+  redirect("/admin");
 }
 
 export type ConfirmState = { error: string } | null;

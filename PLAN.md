@@ -193,6 +193,14 @@ Steps 1–7 are built and pass typecheck, lint, `npm test` (45 tests, PGlite) an
 - Code moved to the **cbs-futbol-club** GitHub org (private).
 - **Live: https://cbsfc-the-list.vercel.app** on the club's Vercel account (Hobby), with the daily cron. Deploys are CLI only (`npm run deploy`): Hobby won't build a private org repo, and blocks commits with co-authors outside the team.
 
+### Done: easier for the board (2026-10-08, evening)
+- **Share to WhatsApp** (`wa.me` link with the post typed in) on the practice page and home cards.
+- **Morning email** to the board from the daily job (6 AM NY, Hobby cron runs once a day): today's counts + one-tap cancel; on opening days the post + share button. Migration 4 adds the `board_daily` email kind.
+- **One-tap actions** (`/admin/act/<signed link>`, `lib/board-action.ts`): Promote next (late-drop email) and Cancel with a reason (morning email). Confirm page first; signed per board member, expiring.
+- **Cancel reasons**: Low attendance / Bad weather / Field unavailable chips, in the app and the email page.
+- **Home-screen app** (manifest scoped to /admin, generated icons, install tip) and a **login code** in the login email (Supabase sends 8 digits; 5 wrong tries max). Sessions already last until logout.
+- Fixed: confirm-sheet buttons collapsed to 20px tall on phones.
+
 ### Next
 - Board dry run on the live site: president logs in, sets their name on **Board** (it's still "Developer", which shows in invite emails), invites the board, then **Copy WhatsApp post** for the next practice.
 - Remove Martin's test sign-up from Friday Oct 9 Games before posting.

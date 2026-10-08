@@ -19,7 +19,7 @@ export const env = {
   get supabaseSecretKey() {
     return required("SUPABASE_SECRET_KEY");
   },
-  /** Signs personal drop-out links. Any long random string. */
+  /** Signs drop-out, sign-up and one-tap board links. Any long random string. */
   get dropLinkSecret() {
     return required("DROP_LINK_SECRET");
   },

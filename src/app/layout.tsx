@@ -8,6 +8,8 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 export const metadata: Metadata = {
   title: { default: "The List · CBS FC", template: "%s · The List" },
   description: "The practice sign-up list for CBS FC. Mondays, Wednesdays, Fridays. Your spot, sorted.",
+  // "Add to Home Screen" on iPhone opens full screen, like an app (see manifest.ts).
+  appleWebApp: { capable: true, title: "The List", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

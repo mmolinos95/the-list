@@ -9,6 +9,13 @@ export function countLine(l: Pick<AdminList, "name" | "cap" | "main" | "waitlist
   return `${l.name}${time ? ` ${time}` : ""} ${l.main.length}/${l.cap}${l.waitlist.length ? ` + ${l.waitlist.length} waiting` : ""}`;
 }
 
+/** How many people an email to this practice reaches (each person once, walk-ins without an email skipped). */
+export function recipients(lists: Pick<AdminList, "main" | "waitlist">[], includeWaitlist: boolean) {
+  const ids = new Set<string>();
+  for (const l of lists) for (const s of [...l.main, ...(includeWaitlist ? l.waitlist : [])]) if (s.member.email) ids.add(s.member.id);
+  return ids.size;
+}
+
 export const needsTeams = (p: AdminPractice) =>
   (p.stage === "locked" || p.stage === "open") && p.lists.some((l) => l.makes_teams && !l.teams_sent_at && l.main.length > 0);
 

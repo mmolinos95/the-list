@@ -1,12 +1,14 @@
 import { timingSafeEqual } from "node:crypto";
+import { queueBoardDaily } from "@/lib/board-daily";
 import { env } from "@/lib/env";
 import { processOutbox } from "@/lib/notify/outbox";
 import { db } from "@/lib/supabase";
 
 // Daily job (see vercel.json). Vercel calls it with "Authorization: Bearer
-// $CRON_SECRET". It creates the next two weeks of practices, retries emails
-// that didn't go out, and deletes members idle for 12 months. Running it
-// every day also keeps the free Supabase project from pausing.
+// $CRON_SECRET" at 6 AM New York time. It creates the next two weeks of
+// practices, queues the board's morning email (lib/board-daily.ts), sends and
+// retries emails, and deletes members idle for 12 months. Running it every day
+// also keeps the free Supabase project from pausing.
 
 export const maxDuration = 60;
 
@@ -25,6 +27,13 @@ export async function GET(request: Request) {
   const created = await supabase.rpc("create_upcoming_events", { p_days: 14 });
   if (created.error) console.error("create_upcoming_events failed", created.error);
 
+  let boardEmails = 0;
+  try {
+    boardEmails = await queueBoardDaily();
+  } catch (err) {
+    console.error("Board morning email failed", err);
+  }
+
   let emails = { sent: 0, failed: 0 };
   try {
     emails = await processOutbox(200);
@@ -37,7 +46,7 @@ export async function GET(request: Request) {
 
   const ok = !created.error && !cleaned.error;
   return Response.json(
-    { ok, practicesCreated: created.data ?? 0, emails, membersDeleted: cleaned.data ?? 0 },
+    { ok, practicesCreated: created.data ?? 0, boardEmails, emails, membersDeleted: cleaned.data ?? 0 },
     { status: ok ? 200 : 500 },
   );
 }

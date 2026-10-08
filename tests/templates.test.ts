@@ -47,6 +47,13 @@ describe("email templates", () => {
     expect(m.html).toContain("?k=key");
   });
 
+  it("gives board emails a one-tap promote link when they can carry one", () => {
+    const withAct = render("late_drop", payloads.late_drop, { ...ctx, act: (a) => `https://list.example/admin/act/${a.a}-${"l" in a ? a.l : ""}` });
+    expect(withAct.html).toContain("https://list.example/admin/act/promote-Games");
+    expect(withAct.html).toContain("Promote the next person");
+    expect(render("late_drop", payloads.late_drop, ctx).html).not.toContain("/admin/act/");
+  });
+
   it("names the team in the subject", () => {
     expect(render("team", payloads.team, ctx).subject).toBe("You're on LIGHT BLUE for Wednesday");
     expect(render("team", { ...payloads.team, update: true }, ctx).subject).toBe("Team change: you're on LIGHT BLUE for Wednesday");

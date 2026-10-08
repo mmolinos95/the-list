@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { InstallHint } from "@/components/install-hint";
 import { ButtonLink, Card, Chip, TextLink } from "@/components/ui";
 import { getAdminPractices, getFailedEmailCount, getTemplates } from "@/lib/admin-data";
 import { requireBoard } from "@/lib/auth";
-import { shareFor } from "@/lib/share";
+import { shareFor, type Share } from "@/lib/share";
 import { monthDay, timeRange, weekdayLong } from "@/lib/time";
-import { CopyButton, OpenSignupsButton, RetryEmailsButton } from "./buttons";
+import { CopyButton, OpenSignupsButton, RetryEmailsButton, WhatsAppButton } from "./buttons";
 import { AdminStageChip, countLine, needsTeams } from "./summary";
 
 // B1: a to-do list, not a dashboard. Each practice shows the one thing it needs next.
@@ -14,6 +15,7 @@ export default function BoardHome() {
   return (
     <>
       <h1 className="mb-4 font-display text-4xl">Practices</h1>
+      <InstallHint />
       <Suspense fallback={<Skeleton />}>
         <Practices />
       </Suspense>
@@ -96,7 +98,7 @@ async function Practices() {
                       View
                     </ButtonLink>
                   )}
-                  {live && <CopyButton text={shareFor(p.event, p.lists).post} label="Copy post" kind="ghost" />}
+                  {live && <ShareButtons share={shareFor(p.event, p.lists)} />}
                 </div>
               </Card>
             </li>
@@ -114,5 +116,14 @@ function Skeleton() {
         <div key={i} className="h-40 animate-pulse rounded-2xl bg-white/70" />
       ))}
     </div>
+  );
+}
+
+function ShareButtons({ share }: { share: Share }) {
+  return (
+    <>
+      <WhatsAppButton href={share.whatsapp} label="Share" kind="ghost" />
+      <CopyButton text={share.post} label="Copy post" kind="ghost" />
+    </>
   );
 }

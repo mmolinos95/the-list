@@ -11,7 +11,10 @@ import type { EventList, EventRow } from "./types";
 //   Location: Riverside Park (107th) entrance at 103rd St
 //   Sign up: https://…/p/2026-10-09-fri?k=…
 
-export type Share = { url: string; post: string };
+export type Share = { url: string; post: string; whatsapp: string };
+
+/** Opens WhatsApp with the post typed in; you pick the group and press send. */
+export const whatsappUrl = (text: string) => `https://wa.me/?text=${encodeURIComponent(text)}`;
 
 const hm = (iso: string) => toLocalInputs(iso).time;
 
@@ -25,5 +28,5 @@ export function shareFor(event: EventRow, lists: Pick<EventList, "name" | "cap" 
     `Location: ${event.location}`,
     `Sign up: ${url}`,
   ].join("\n");
-  return { url, post };
+  return { url, post, whatsapp: whatsappUrl(post) };
 }

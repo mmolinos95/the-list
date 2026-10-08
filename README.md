@@ -21,7 +21,8 @@ You need: a GitHub account with this repo, and the club Google account. Use the 
    1. `supabase/migrations/20261008000001_schema.sql`
    2. `supabase/migrations/20261008000002_functions.sql`
    3. `supabase/migrations/20261008000003_list_times.sql`
-   4. `supabase/seed.sql`, **after** changing the president's email (and the practice times and place, if you know them; they can also be fixed later in the app).
+   4. `supabase/migrations/20261008000004_board_daily.sql`
+   5. `supabase/seed.sql`, **after** changing the president's email (and the practice times and place, if you know them; they can also be fixed later in the app).
 3. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up". (The app creates board logins itself; this stops strangers from making accounts.)
 4. **Project Settings → API Keys**: copy the **Project URL**, the **publishable** key and a **secret** key for the next step.
 
@@ -45,7 +46,7 @@ Deploys go through the Vercel CLI, not Git: Vercel's free plan won't build a pri
    | `SUPABASE_URL` | Project URL from Supabase |
    | `SUPABASE_PUBLISHABLE_KEY` | Publishable key |
    | `SUPABASE_SECRET_KEY` | Secret key (keep it secret: it can read everything) |
-   | `DROP_LINK_SECRET` | A long random string (`openssl rand -base64 32`). Signs drop-out and sign-up links; changing it breaks the ones already sent. |
+   | `DROP_LINK_SECRET` | A long random string (`openssl rand -base64 32`). Signs drop-out, sign-up and one-tap board links; changing it breaks the ones already sent. |
    | `CRON_SECRET` | Another long random string. Vercel sends it to the daily job automatically. |
    | `GMAIL_USER` | The club Gmail address |
    | `GMAIL_APP_PASSWORD` | The app password from step 2 |

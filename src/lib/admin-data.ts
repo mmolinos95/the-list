@@ -88,3 +88,9 @@ export async function getFailedEmailCount(): Promise<number> {
   const { count } = await db().from("emails").select("id", { count: "exact", head: true }).eq("status", "failed").gte("attempts", 5);
   return count ?? 0;
 }
+
+export async function getAdminPracticeById(id: string): Promise<AdminPractice | null> {
+  const { data, error } = await db().from("events").select(ADMIN_SELECT).eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? shape(data as RawEvent, new Date()) : null;
+}

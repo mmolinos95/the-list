@@ -1,11 +1,12 @@
 import "server-only";
 import { after } from "next/server";
+import { boardActionUrl } from "../board-action";
 import { dropUrl } from "../drop-link";
 import { env } from "../env";
 import { signupUrl } from "../signup-link";
 import { db } from "../supabase";
 import { emailChannel } from "./email";
-import { render } from "./templates";
+import { render, type EmailContext } from "./templates";
 
 // Emails are queued in the `emails` table by the database functions, in the
 // same transaction as the change. This file sends them.
@@ -15,6 +16,9 @@ const DAILY_LIMIT = 450;
 
 /** Kinds sent to members, which get a personal drop-out link. */
 const MEMBER_KINDS = new Set(["signup", "promoted", "team", "changed", "board_message"]);
+
+/** Kinds sent to a board member, which can carry one-tap action links bound to that member. */
+const BOARD_ACTION_KINDS = new Set(["late_drop", "board_daily"]);
 
 type EmailRow = {
   id: string;
@@ -48,10 +52,11 @@ export async function processOutbox(limit = 100) {
     await Promise.all(
       rows.slice(i, i + 5).map(async (row) => {
         try {
-          const ctx = {
+          const ctx: EmailContext = {
             siteUrl: env.siteUrl,
             dropUrl: MEMBER_KINDS.has(row.kind) && row.member_id && row.event_id ? dropUrl(row.event_id, row.member_id) : undefined,
             practiceUrl: practiceUrl(row.payload),
+            act: BOARD_ACTION_KINDS.has(row.kind) ? (a) => boardActionUrl({ ...a, to: row.to_address }) : undefined,
           };
           const message = render(row.kind, row.payload, ctx);
           await channel.send({ to: row.to_address, ...message });

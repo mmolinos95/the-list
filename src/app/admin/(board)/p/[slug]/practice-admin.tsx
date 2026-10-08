@@ -2,22 +2,18 @@
 
 import { useState } from "react";
 import { ConfirmButton, Flash, MoreMenu, Sheet, useAction } from "@/components/admin-ui";
+import { CancelReason } from "@/components/cancel-reason";
 import { listTime } from "@/components/practice";
 import { Button, ButtonLink, Card, Check, Field, inputClass, Label, WaitRing, cx } from "@/components/ui";
 import type { AdminList, AdminPractice, AdminSignup } from "@/lib/admin-data";
 import { clock, dayDate, WEEKDAYS } from "@/lib/time";
 import { type ActionResult, addSignup, cancelPractice, editPractice, messagePractice, promoteSignup, removeSignup } from "../../../actions";
 import { OpenSignupsButton } from "../../buttons";
+import { recipients } from "../../summary";
 
 type Form = { date: string; location: string; lists: { id: string; name: string; start: string; end: string; cap: string }[] };
 
 const players = (n: number) => `${n} ${n === 1 ? "player" : "players"}`;
-
-function recipients(lists: AdminList[], includeWaitlist: boolean) {
-  const ids = new Set<string>();
-  for (const l of lists) for (const s of [...l.main, ...(includeWaitlist ? l.waitlist : [])]) if (s.member.email) ids.add(s.member.id);
-  return ids.size;
-}
 
 export function PracticeAdmin({ practice, lockTime, form }: { practice: AdminPractice; lockTime: string; form: Form }) {
   const { event, stage, lists } = practice;
@@ -497,9 +493,7 @@ function CancelSheet({ open, onClose, practice, onFlash }: { open: boolean; onCl
       title="Cancel practice?"
     >
       <div className="space-y-4">
-        <Field label="Reason (optional)" hint="Shown on the practice page and in the email.">
-          <input value={reason} onChange={(e) => setReason(e.target.value)} className={inputClass} placeholder="Field closed for rain" maxLength={300} />
-        </Field>
+        <CancelReason value={reason} onChange={setReason} />
         <p className="text-[15px]">
           {n > 0 ? `We'll email the ${players(n)} signed up, including the waitlist.` : "Nobody has signed up yet, so no emails go out."}{" "}
           <b>This can&apos;t be undone.</b>
@@ -509,7 +503,7 @@ function CancelSheet({ open, onClose, practice, onFlash }: { open: boolean; onCl
           <Button
             kind="danger"
             disabled={pending}
-            className="flex-1"
+            className="sm:flex-1"
             onClick={() =>
               run(
                 () => cancelPractice(practice.event.id, reason),
@@ -522,7 +516,7 @@ function CancelSheet({ open, onClose, practice, onFlash }: { open: boolean; onCl
           >
             {pending ? "Cancelling…" : "Cancel practice"}
           </Button>
-          <Button kind="ghost" className="flex-1" onClick={onClose}>
+          <Button kind="ghost" className="sm:flex-1" onClick={onClose}>
             Keep it
           </Button>
         </div>
