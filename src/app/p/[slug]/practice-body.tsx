@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { getCountries, getCountryCallingCode, type CountryCode } from "libphonenumber-js";
 import { myStatus, signUp } from "@/app/actions";
 import { Countdown } from "@/components/live";
@@ -145,6 +145,8 @@ const countryName = (() => {
   }
 })();
 
+const noSubscribe = () => () => {};
+
 function SignupCard({
   practice,
   signupKey,
@@ -189,13 +191,17 @@ function SignupCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listKey]);
 
-  const countries = useMemo(
+  // Country names come from the runtime's ICU data, which differs between Node and browsers,
+  // so the server renders only the selected country and the browser fills in the rest.
+  const inBrowser = useSyncExternalStore(noSubscribe, () => true, () => false);
+  const allCountries = useMemo(
     () =>
       getCountries()
         .map((c) => ({ code: c, label: `${countryName(c)} (+${getCountryCallingCode(c)})` }))
         .sort((a, b) => a.label.localeCompare(b.label)),
     [],
   );
+  const countries = inBrowser ? allCountries : allCountries.filter((c) => c.code === country);
 
   const chosen = lists.filter((l) => picked.has(l.id));
   const allFull = chosen.length > 0 && chosen.every((l) => l.main.length >= l.cap);
@@ -263,14 +269,17 @@ function SignupCard({
               </Field>
               <Field label="Phone" hint="Kept private. Only the board can see it." error={error?.field === "phone" ? error.message : undefined}>
                 <div className="flex gap-2">
-                  <select className={cx(inputClass, "w-28 shrink-0 px-2")} value={country} onChange={(e) => setCountry(e.target.value)} aria-label="Country code">
-                    {countries.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.code === country ? `${c.code} +${getCountryCallingCode(c.code as CountryCode)}` : c.label}
-                      </option>
-                    ))}
-                  </select>
-                  <input className={inputClass} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel-national" placeholder="212 555 0148" required />
+                  {/* inputClass sets w-full, so the select's width comes from this wrapper. */}
+                  <div className="w-28 shrink-0">
+                    <select className={inputClass} value={country} onChange={(e) => setCountry(e.target.value)} aria-label="Country code">
+                      {countries.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code === country ? `${c.code} +${getCountryCallingCode(c.code as CountryCode)}` : c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <input className={cx(inputClass, "min-w-0")} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel-national" placeholder="212 555 0148" required />
                 </div>
               </Field>
           </div>
