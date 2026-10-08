@@ -82,7 +82,10 @@ The body changes with the practice's stage:
 ### B0. Log in (`/admin/login`)
 - One field: "Your email". Button: **SEND ME A LOGIN LINK**.
 - Always replies "If you're on the board, a login email is on its way.", so it doesn't reveal who has access.
-- The email has a link **and a code** (8 digits, shown "1234 5678"). After sending, the page shows "Or type the code from the email": for the home-screen app (on iPhone it doesn't share Safari's login) or when the email is on another device. Five wrong codes and that code stops working until a new email is sent.
+- The email has a link **and a code** (8 digits, shown "1234 5678"), both signed by the app and tied to when the email was sent.
+  - **The link logs you in with one tap.** It works for 15 minutes instead of once, because email scanners (Outlook, Gmail) open links before you do and would use up a single-use link.
+  - **The code** is for the home-screen app (on iPhone it doesn't share Safari's login) or when the email is on another device: after sending, the page shows "Or type the code from the email". Five wrong codes and it stops working.
+  - Asking for a new email kills the previous link and code. A dead link lands back here with "That login link has expired or a newer one was sent."
 - No passwords. Sessions last until you log out.
 - **Home-screen app:** the board installs like an app (web app manifest scoped to `/admin`, opens on Practices). The home screen shows a one-time tip on phones: an **Install** button on Android, "••• → Share → View More → Add to Home Screen" on iPhone (iOS 26 moved Share into Safari's ••• menu).
 
