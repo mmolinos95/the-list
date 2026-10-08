@@ -3,9 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AutoRefresh } from "@/components/live";
+import { Card, Label } from "@/components/ui";
 import { getAdminPractice } from "@/lib/admin-data";
 import { requireBoard } from "@/lib/auth";
+import { shareFor } from "@/lib/share";
 import { clock, monthDay, timeRange, toLocalInputs, weekdayLong } from "@/lib/time";
+import { CopyButton } from "../../buttons";
 import { AdminStageChip } from "../../summary";
 import { PracticeAdmin } from "./practice-admin";
 
@@ -22,17 +25,22 @@ export default function PracticeAdminPage({ params }: PageProps<"/admin/p/[slug]
 }
 
 async function Detail({ params }: { params: Promise<{ slug: string }> }) {
-  await requireBoard();
+  const me = await requireBoard();
   const { slug } = await params;
   const practice = await getAdminPractice(slug);
   if (!practice) notFound();
   const { event, stage } = practice;
-  const start = toLocalInputs(event.starts_at);
-  const end = toLocalInputs(event.ends_at);
+  const form = {
+    date: toLocalInputs(event.starts_at).date,
+    location: event.location,
+    lists: practice.lists.map((l) => ({ id: l.id, name: l.name, start: toLocalInputs(l.starts_at).time, end: toLocalInputs(l.ends_at).time, cap: String(l.cap) })),
+  };
+  const live = stage !== "past" && stage !== "cancelled";
+  const share = live ? shareFor(event, practice.lists) : null;
 
   return (
     <>
-      {stage !== "past" && stage !== "cancelled" && <AutoRefresh seconds={20} />}
+      {live && <AutoRefresh seconds={20} />}
       <Link href="/admin" className="text-sm font-semibold text-core hover:underline">
         ← All practices
       </Link>
@@ -50,10 +58,22 @@ async function Detail({ params }: { params: Promise<{ slug: string }> }) {
         </div>
         <AdminStageChip practice={practice} />
       </div>
+      {share && (
+        <Card className="mt-5">
+          <Label>Sign-up link</Label>
+          <p className="mt-1 truncate text-sm text-muted">{share.url}</p>
+          <p className="mt-1 text-xs text-muted">Only people with this link can sign up. It stops working when the practice ends.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <CopyButton text={share.post} label="Copy WhatsApp post" kind="primary" />
+            <CopyButton text={share.url} label="Copy link" />
+          </div>
+        </Card>
+      )}
       <PracticeAdmin
         practice={practice}
         lockTime={clock(event.locks_at)}
-        form={{ date: start.date, start: start.time, end: end.time, location: event.location }}
+        form={form}
+        president={me.role === "president"}
       />
     </>
   );

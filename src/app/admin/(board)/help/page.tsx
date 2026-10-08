@@ -24,13 +24,16 @@ export default function HelpPage() {
 
       <Section title="A normal practice runs itself">
         <p>
-          Practices come from the <TextLink href="/admin/schedule">weekly schedule</TextLink> and show up two weeks ahead. Sign-ups open on their own (usually 9 AM the day before) and members sign up from the link pinned in WhatsApp.
+          Practices come from the <TextLink href="/admin/schedule">weekly schedule</TextLink> and show up two weeks ahead. Sign-ups open on their own (usually 9 AM the day before).
+        </p>
+        <p>
+          <b>Post each practice in WhatsApp.</b> Open it (or use the home screen) and press <b>Copy WhatsApp post</b>, then paste it in the group. Every practice has its own sign-up link that only works until the practice ends, so people outside the group can&apos;t sign up.
         </p>
         <p>When a list is full, new sign-ups go to the waitlist. If someone drops out, the first person waiting moves up and gets an email.</p>
       </Section>
 
       <Section title="The lock, 2 hours before kickoff">
-        <p>The list locks 2 hours before kickoff. Nobody new can sign up, and the waitlist stops moving up on its own.</p>
+        <p>The list locks 2 hours before kickoff (the first list&apos;s start, so 8 AM on a Friday with Skills at 10). Nobody new can sign up, and the waitlist stops moving up on its own.</p>
         <p>
           Members can still drop out, but it counts as a <TextLink href="/admin/drops">late drop</TextLink>: the board gets an email, and you can promote someone from the waitlist on the practice page.
         </p>
@@ -48,7 +51,7 @@ export default function HelpPage() {
       <Section title="When plans change">
         <p>Open the practice and use the ⋯ menu:</p>
         <ul className="list-disc space-y-1 pl-5">
-          <li><b>Edit this practice</b>: new time, place or cap for that day only.</li>
+          <li><b>Edit this practice</b>: new date, place, or each list&apos;s time and cap for that day. Presidents can tick <b>Also use for future Fridays</b> (or whichever day) to change the weekly schedule too.</li>
           <li><b>Message the list</b>: an email to everyone signed up.</li>
           <li><b>Cancel practice</b>: emails everyone and shows “Practice is off”.</li>
         </ul>

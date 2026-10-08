@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { ConfirmButton, Flash, MoreMenu, Sheet, useAction } from "@/components/admin-ui";
+import { listTime } from "@/components/practice";
 import { Button, ButtonLink, Card, Check, Field, inputClass, Label, WaitRing, cx } from "@/components/ui";
 import type { AdminList, AdminPractice, AdminSignup } from "@/lib/admin-data";
-import { clock, dayDate } from "@/lib/time";
+import { clock, dayDate, WEEKDAYS } from "@/lib/time";
 import { type ActionResult, addSignup, cancelPractice, editPractice, messagePractice, promoteSignup, removeSignup } from "../../../actions";
 import { OpenSignupsButton } from "../../buttons";
 
-type Form = { date: string; start: string; end: string; location: string };
+type Form = { date: string; location: string; lists: { id: string; name: string; start: string; end: string; cap: string }[] };
 
 const players = (n: number) => `${n} ${n === 1 ? "player" : "players"}`;
 
@@ -18,7 +19,7 @@ function recipients(lists: AdminList[], includeWaitlist: boolean) {
   return ids.size;
 }
 
-export function PracticeAdmin({ practice, lockTime, form }: { practice: AdminPractice; lockTime: string; form: Form }) {
+export function PracticeAdmin({ practice, lockTime, form, president }: { practice: AdminPractice; lockTime: string; form: Form; president: boolean }) {
   const { event, stage, lists } = practice;
   const [tab, setTab] = useState(lists[0]?.id);
   const [sheet, setSheet] = useState<null | "edit" | "message" | "cancel">(null);
@@ -65,6 +66,7 @@ export function PracticeAdmin({ practice, lockTime, form }: { practice: AdminPra
               className={cx("flex-1 rounded-lg py-2 font-display text-xl", l.id === list.id ? "bg-columbia text-ink" : "text-muted hover:text-ink")}
             >
               {l.name} <span className="text-base">{l.main.length}/{l.cap}</span>
+              {listTime(l, event) && <span className="block font-sans text-xs">{listTime(l, event)}</span>}
             </button>
           ))}
         </div>
@@ -72,7 +74,7 @@ export function PracticeAdmin({ practice, lockTime, form }: { practice: AdminPra
 
       {list && <ListPanel key={list.id} list={list} locked={locked} live={live} lockTime={lockTime} onFlash={setFlash} />}
 
-      <EditSheet open={sheet === "edit"} onClose={() => setSheet(null)} practice={practice} form={form} onFlash={setFlash} />
+      <EditSheet open={sheet === "edit"} onClose={() => setSheet(null)} practice={practice} form={form} president={president} onFlash={setFlash} />
       <MessageSheet open={sheet === "message"} onClose={() => setSheet(null)} practice={practice} onFlash={setFlash} />
       <CancelSheet open={sheet === "cancel"} onClose={() => setSheet(null)} practice={practice} onFlash={setFlash} />
     </div>
@@ -305,23 +307,32 @@ function EditSheet({
   onClose,
   practice,
   form,
+  president,
   onFlash,
 }: {
   open: boolean;
   onClose: () => void;
   practice: AdminPractice;
   form: Form;
+  president: boolean;
   onFlash: (r: ActionResult) => void;
 }) {
   const { pending, result, run, clear } = useAction();
   const [v, setV] = useState(form);
-  const [caps, setCaps] = useState(() => Object.fromEntries(practice.lists.map((l) => [l.id, String(l.cap)])));
   const [notifyTouched, setNotifyTouched] = useState(false);
   const [notifyChoice, setNotifyChoice] = useState(false);
-  const moved = v.date !== form.date || v.start !== form.start || v.end !== form.end || v.location.trim() !== form.location;
+  const [forFuture, setForFuture] = useState(false);
+  const moved =
+    v.date !== form.date ||
+    v.location.trim() !== form.location ||
+    v.lists.some((l, i) => l.start !== form.lists[i].start || l.end !== form.lists[i].end);
   const notify = notifyTouched ? notifyChoice : moved;
   const n = recipients(practice.lists, true);
-  const set = (k: keyof Form) => (e: React.ChangeEvent<HTMLInputElement>) => setV({ ...v, [k]: e.target.value });
+  // Only offered when the practice comes from the weekly schedule and stays on its day.
+  const canCopy = president && practice.event.template_id !== null && v.date === form.date;
+  const weekday = WEEKDAYS[new Date(`${form.date}T12:00:00Z`).getUTCDay()];
+  const setList = (i: number, k: "start" | "end" | "cap") => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setV({ ...v, lists: v.lists.map((l, j) => (j === i ? { ...l, [k]: e.target.value } : l)) });
 
   return (
     <Sheet
@@ -340,9 +351,11 @@ function EditSheet({
             () =>
               editPractice({
                 eventId: practice.event.id,
-                ...v,
-                caps: practice.lists.map((l) => ({ listId: l.id, cap: Number(caps[l.id]) })),
+                date: v.date,
+                location: v.location,
+                lists: v.lists.map((l) => ({ listId: l.id, start: l.start, end: l.end, cap: Number(l.cap) })),
                 notify,
+                forFuture: canCopy && forFuture,
               }),
             (r) => {
               onFlash(r);
@@ -351,39 +364,42 @@ function EditSheet({
           );
         }}
       >
-        <p className="text-sm text-muted">Changes apply to this practice only. To change every week, edit the weekly schedule.</p>
         <Field label="Date">
-          <input type="date" required value={v.date} onChange={set("date")} className={inputClass} />
+          <input type="date" required value={v.date} onChange={(e) => setV({ ...v, date: e.target.value })} className={inputClass} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Starts">
-            <input type="time" required value={v.start} onChange={set("start")} className={inputClass} />
-          </Field>
-          <Field label="Ends">
-            <input type="time" required value={v.end} onChange={set("end")} className={inputClass} />
-          </Field>
-        </div>
+        {v.lists.map((l, i) => (
+          <fieldset key={l.id} className="space-y-2">
+            {v.lists.length > 1 && <legend className="mb-1 font-display text-xl">{l.name}</legend>}
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Starts">
+                <input type="time" required value={l.start} onChange={setList(i, "start")} className={inputClass} />
+              </Field>
+              <Field label="Ends">
+                <input type="time" required value={l.end} onChange={setList(i, "end")} className={inputClass} />
+              </Field>
+              <Field label="Cap">
+                <input type="number" min={1} max={500} required value={l.cap} onChange={setList(i, "cap")} className={inputClass} />
+              </Field>
+            </div>
+          </fieldset>
+        ))}
         <Field label="Place">
-          <input required value={v.location} onChange={set("location")} className={inputClass} />
+          <input required value={v.location} onChange={(e) => setV({ ...v, location: e.target.value })} className={inputClass} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          {practice.lists.map((l) => (
-            <Field key={l.id} label={`${l.name} cap`}>
-              <input
-                type="number"
-                min={1}
-                max={500}
-                required
-                value={caps[l.id]}
-                onChange={(e) => setCaps({ ...caps, [l.id]: e.target.value })}
-                className={inputClass}
-              />
-            </Field>
-          ))}
-        </div>
         <p className="text-xs text-muted">
-          Raising a cap before the lock moves people up from the waitlist (they get an email). Lowering it never removes anyone already in.
+          The list locks 2 hours before the first start time. Raising a cap before the lock moves people up from the waitlist (they get an email).
+          Lowering it never removes anyone already in.
         </p>
+        {canCopy ? (
+          <label className="flex items-start gap-2 text-[15px]">
+            <input type="checkbox" checked={forFuture} onChange={(e) => setForFuture(e.target.checked)} className="mt-1 size-4 accent-core" />
+            <span>
+              Also use for future {weekday}s <span className="text-muted">(place, times and caps)</span>
+            </span>
+          </label>
+        ) : (
+          <p className="text-sm text-muted">Changes apply to this practice only. To change every week, edit the weekly schedule.</p>
+        )}
         <label className="flex items-start gap-2 text-[15px]">
           <input
             type="checkbox"

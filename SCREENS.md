@@ -18,19 +18,15 @@ Board members change every year, so the app has to explain itself.
 
 ## Member screens (no login)
 
-### M1. Home (`/`): the permanent WhatsApp link
-Pin it in the group once and nobody has to post a new link.
+### M1. Home (`/`): "Get the link in WhatsApp"
+There is no public list of practices. Each practice has its own sign-up link (`/p/<date-day>?k=<key>`) that the board posts in the WhatsApp group, so people outside the group can't sign up.
 
-- Header: logo + "YOUR SPOT, SORTED."
-- **This week**: one card per upcoming practice, in date order. Each card shows:
-  - Day + time + place ("WEDNESDAY · 12:30 PM · Riverside Park")
-  - A status chip: `OPENS TUE 9:00 AM` · `OPEN · 31/40` · `FULL · 3 WAITING` · `LOCKED` · `TEAMS ARE OUT` · `CANCELLED`
-  - Your own status if the browser remembers you: "You're in" / "Waitlist #3"
-- Tap a card to go to its practice page.
-- Empty state: "No practices scheduled right now. Check the WhatsApp group for news."
+- Logo, then a card: **GET THE LINK IN WHATSAPP**: "Each practice has its own sign-up link, posted in the CBS FC WhatsApp group. Open the latest one from there."
+- "Signed up already? Your confirmation email has a link to manage your spot."
+- A practice page opened without a key, with a wrong key, or after the practice ended shows the same card ("This link has expired").
 
 ### M2. Practice page (`/p/<date-day>`, e.g. `/p/2026-10-08-wed`)
-Shareable on its own when the board wants to point at one practice. Header (Columbia Blue): **WEDNESDAY PRACTICE**, date · time · place, plus a chip for when it locks.
+Opened from the link in WhatsApp (it needs the `?k=` key). Header (Columbia Blue): **WEDNESDAY PRACTICE**, date · time · place, plus a chip for when it locks.
 
 The body changes with the practice's stage:
 
@@ -100,9 +96,19 @@ The body changes with the practice's stage:
 - Footer link: "How this works": a single help page for new board members.
 
 ### B2. Practice detail (`/admin/p/<date-day>`)
-- Header: practice info + stage chip. Main button depends on stage: **OPEN SIGN-UPS** / **BUILD TEAMS** / **VIEW TEAMS**.
+- Header: practice info + stage chip.
+- **Sign-up link** card while the practice is coming up: **COPY WHATSAPP POST** (ready to paste, in the club's format) and **COPY LINK**. "Only people with this link can sign up. It stops working when the practice ends." The home screen cards have a **COPY POST** button too.
+
+  ```
+  List Sign Up: 10/9 Friday Practice
+  Skills: 10:00 - 11:00 (40 players)
+  Games: 11:00 - 12:00 (40 players)
+  Location: Riverside Park (107th) entrance at 103rd St
+  Sign up: https://…/p/2026-10-09-fri?k=…
+  ```
+- Main button depends on stage: **OPEN SIGN-UPS** / **BUILD TEAMS** / **VIEW TEAMS**.
 - "⋯" menu: **Edit this practice** · **Message the list** · **Cancel practice**
-- Tabs per list (SKILLS · GAMES):
+- Tabs per list (SKILLS · GAMES), with each list's time when the lists run at different times:
   - **Main list**: numbered names. Tap a name to see email, phone and sign-up time, plus **Remove from list**.
   - **Waitlist**: in order. After the lock, each row has a **PROMOTE** button. Before the lock a hint says "Promotion is automatic until 10:30 AM."
   - **+ ADD SOMEONE**: name required; email and phone optional (for walk-ins). They go to the end of the list.
@@ -110,10 +116,11 @@ The body changes with the practice's stage:
 - Removing someone before the lock automatically promotes the first person on the waitlist (and emails them). The confirm sheet says so.
 
 ### B3. Edit this practice
-- Time, place, and cap per list. Changes apply to this practice only: "To change every Wednesday, edit the weekly schedule."
+- Date and place, then start, end and cap **per list**. The practice runs from the first list to the last and locks 2 hours before the first one.
+- Changes apply to this practice only, unless a president ticks ☐ **"Also use for future Fridays"**: that copies the place and each list's times and cap to the weekly schedule (lists matched by position and name), and rebuilds upcoming practices nobody has signed up for. It's hidden when the date moved to another day.
 - Raising a cap before the lock promotes people from the waitlist automatically.
 - Lowering a cap never removes anyone already in. The help text says so.
-- Checkbox: ☐ "Email everyone on the list about this change". Default on if the time or place changed.
+- Checkbox: ☐ "Email everyone on the list about this change". Default on if the date, a time or the place changed.
 
 ### B4. Message the list
 - Text box, with recipient checkboxes: ☑ Main list ☐ Waitlist
@@ -135,12 +142,12 @@ Uses the main list of every list marked "Split into teams" (Games).
 - After sending, moving someone shows **SEND UPDATES (2)**, which emails only the players who moved.
 
 ### B7. Weekly schedule (`/admin/schedule`)
-- One card per recurring practice: "WEDNESDAY · 12:30–2:00 PM · Riverside Park · Skills 40 · Games 40 · Opens Tue 9:00 AM".
+- One card per recurring practice: "FRIDAY · 10 AM–12 PM · Riverside Park … · Skills 10–11 AM · 40 | Games 11 AM–12 PM · 40 (teams) · Opens Thu 9 AM". A list's time is only shown when it differs from the practice's.
 - Edit form that reads like a sentence:
-  - Every **[Wednesday]** from **[12:30 PM]** to **[2:00 PM]** at **[Riverside Park]**
-  - Lists: **[Skills]** cap **[40]** ☐ split into teams · **[Games]** cap **[40]** ☑ split into teams · + Add list
+  - Every **[Friday]** at **[Riverside Park (107th) entrance at 103rd St]**
+  - Lists, each with its own time: **[Skills]** **[10:00]** to **[11:00]** cap **[40]** ☐ split into teams · **[Games]** **[11:00]** to **[12:00]** cap **[40]** ☑ split into teams · + Add list
   - Sign-ups open: ◉ **[the day before]** at **[9:00 AM]** ○ when a board member presses "Open sign-ups"
-  - Locks 2 hours before kickoff (fixed, with the explanation shown)
+  - Locks 2 hours before the first list starts (fixed, with the explanation shown)
 - **Pause** toggle per practice, for breaks and exams: no new practices are created while it's paused.
 - Board members see this screen read-only, with "Only presidents can change the schedule."
 
@@ -161,10 +168,10 @@ Uses the main list of every list marked "Split into teams" (Games).
 ## Key flows
 
 **1. A normal Wednesday (fully automatic)**
-Daily cron creates Wed practice → Tue 9:00 AM sign-ups open on their own → members sign up from the pinned link → drops before 10:30 AM promote the waitlist + email → 10:30 AM lock → board opens the app, sees **BUILD TEAMS**, shuffles, tweaks, **SEND TEAMS** → players get their color.
+Daily cron creates Wed practice → Tue 9:00 AM sign-ups open on their own → the board copies the WhatsApp post and posts it → members sign up from that link → drops before 10:30 AM promote the waitlist + email → 10:30 AM lock → board opens the app, sees **BUILD TEAMS**, shuffles, tweaks, **SEND TEAMS** → players get their color.
 
 **2. Member signs up for the first time**
-WhatsApp link → Home → Wednesday card → fills in name/email/phone, ticks Skills + Games → **SAVE MY SPOT** → status card + one email with the drop link. Next time: open the link, tap **SAVE MY SPOT**.
+Practice link in WhatsApp → Wednesday practice page → fills in name/email/phone, ticks Skills + Games → **SAVE MY SPOT** → status card + one email with the drop link. Next time: open the link, tap **SAVE MY SPOT**.
 
 **3. Late drop**
 Member taps the drop link after 10:30 → sees the gentle note → **DROP OUT** → board gets an email and a red "1 LATE DROP" chip on the home screen → board promotes someone from the waitlist (who gets an email) → if teams were already sent, the builder shows the gap and **SEND UPDATES**.

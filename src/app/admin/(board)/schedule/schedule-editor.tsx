@@ -8,7 +8,15 @@ import type { Template } from "@/lib/types";
 import { type ActionResult, deleteTemplate, saveTemplate, setTemplatePaused, type TemplateInput } from "../../actions";
 
 const hhmm = (t: string) => t.slice(0, 5);
+/** "11:00" -> "12:00" (stops at 23:59). */
+const addHour = (t: string) => (Number(t.slice(0, 2)) >= 23 ? "23:59" : `${String(Number(t.slice(0, 2)) + 1).padStart(2, "0")}${t.slice(2)}`);
 const short = (d: number) => WEEKDAYS[((d % 7) + 7) % 7].slice(0, 3);
+
+/** "Games · 40 (teams)", plus the list's time when it doesn't run for the whole practice. */
+function listLine(t: Template, l: Template["template_lists"][number]) {
+  const own = hhmm(l.start_time) !== hhmm(t.start_time) || hhmm(l.end_time) !== hhmm(t.end_time);
+  return `${l.name}${own ? ` ${timeOfDay(l.start_time)}–${timeOfDay(l.end_time)}` : ""} · ${l.cap}${l.makes_teams ? " (teams)" : ""}`;
+}
 
 function opensLine(t: Pick<Template, "open_mode" | "weekday" | "open_days_before" | "open_time">) {
   if (t.open_mode === "manual") return "Opens when a board member presses “Open sign-ups”";
@@ -20,15 +28,12 @@ const BLANK: TemplateInput = {
   id: null,
   title: "",
   weekday: 3,
-  start: "12:30",
-  end: "14:00",
   location: "",
   openMode: "auto",
   openDaysBefore: 1,
   openTime: "09:00",
   lists: [
-    { name: "Skills", cap: 40, makesTeams: false },
-    { name: "Games", cap: 40, makesTeams: true },
+    { name: "Games", cap: 40, makesTeams: true, start: "12:40", end: "13:40" },
   ],
 };
 
@@ -37,13 +42,11 @@ function toInput(t: Template): TemplateInput {
     id: t.id,
     title: t.title,
     weekday: t.weekday,
-    start: hhmm(t.start_time),
-    end: hhmm(t.end_time),
     location: t.location,
     openMode: t.open_mode,
     openDaysBefore: t.open_days_before,
     openTime: hhmm(t.open_time),
-    lists: t.template_lists.map((l) => ({ name: l.name, cap: l.cap, makesTeams: l.makes_teams })),
+    lists: t.template_lists.map((l) => ({ name: l.name, cap: l.cap, makesTeams: l.makes_teams, start: hhmm(l.start_time), end: hhmm(l.end_time) })),
   };
 }
 
@@ -80,7 +83,7 @@ export function ScheduleEditor({ templates, canEdit }: { templates: Template[]; 
             {t.paused && <Chip kind="gold">Paused</Chip>}
           </div>
           <p className="mt-3 text-sm">
-            {t.template_lists.map((l) => `${l.name} ${l.cap}${l.makes_teams ? " (teams)" : ""}`).join(" · ")}
+            {t.template_lists.map((l) => listLine(t, l)).join(" | ")}
           </p>
           <p className="mt-1 text-sm">{opensLine(t)}</p>
           {canEdit && (
@@ -154,10 +157,6 @@ function TemplateSheet({ initial, onClose, onSaved }: { initial: TemplateInput; 
               </option>
             ))}
           </select>
-          from
-          <input type="time" required value={v.start} onChange={(e) => set("start", e.target.value)} className={inline} aria-label="Start time" />
-          to
-          <input type="time" required value={v.end} onChange={(e) => set("end", e.target.value)} className={inline} aria-label="End time" />
           at
           <input required value={v.location} onChange={(e) => set("location", e.target.value)} className={inputClass} placeholder="Riverside Park, field 4" aria-label="Place" />
         </div>
@@ -172,6 +171,11 @@ function TemplateSheet({ initial, onClose, onSaved }: { initial: TemplateInput; 
           {v.lists.map((l, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2 rounded-xl bg-page p-2">
               <input required value={l.name} onChange={(e) => setList(i, { name: e.target.value })} className={cx(inputClass, "w-32 flex-1")} aria-label="List name" placeholder="Games" />
+              <span className="flex items-center gap-1">
+                <input type="time" required value={l.start} onChange={(e) => setList(i, { start: e.target.value })} className={inline} aria-label="Start time" />
+                to
+                <input type="time" required value={l.end} onChange={(e) => setList(i, { end: e.target.value })} className={inline} aria-label="End time" />
+              </span>
               <span>cap</span>
               <input
                 type="number"
@@ -194,7 +198,14 @@ function TemplateSheet({ initial, onClose, onSaved }: { initial: TemplateInput; 
               )}
             </div>
           ))}
-          <button type="button" onClick={() => set("lists", [...v.lists, { name: "", cap: 40, makesTeams: false }])} className="text-sm font-bold text-core hover:underline">
+          <button
+            type="button"
+            onClick={() => {
+              const start = v.lists.at(-1)?.end ?? "12:40";
+              set("lists", [...v.lists, { name: "", cap: 40, makesTeams: false, start, end: addHour(start) }]);
+            }}
+            className="text-sm font-bold text-core hover:underline"
+          >
             + Add list
           </button>
         </fieldset>
@@ -220,7 +231,7 @@ function TemplateSheet({ initial, onClose, onSaved }: { initial: TemplateInput; 
         </fieldset>
 
         <p className="rounded-xl bg-columbia-50 p-3 text-sm">
-          Lists lock 2 hours before kickoff. After that nobody new can sign up and the waitlist stops moving up on its own, so the board can plan teams.
+          Lists lock 2 hours before the first list starts. After that nobody new can sign up and the waitlist stops moving up on its own, so the board can plan teams.
         </p>
 
         {result && !result.ok && <Flash result={result} />}

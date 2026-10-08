@@ -52,7 +52,7 @@ Everything is generic "events" with `type = 'practice'` for now, so games and so
 | type | enum `practice` | Room for `game`, `social` later |
 | title | text | "Wednesday practice" |
 | weekday | smallint 0–6 | |
-| start_time, end_time | time | New York local time |
+| start_time, end_time | time | New York local time. Always the earliest list start and the latest list end |
 | location | text | |
 | open_mode | enum `auto` \| `manual` | |
 | open_days_before | smallint default 1 | Auto mode: "the day before" |
@@ -60,7 +60,7 @@ Everything is generic "events" with `type = 'practice'` for now, so games and so
 | paused | boolean default false | No new events while paused |
 
 ### `template_lists`
-`id`, `template_id`, `name` ("Skills"), `cap` (int, default 40), `makes_teams` (bool), `position` (display order).
+`id`, `template_id`, `name` ("Skills"), `cap` (int, default 40), `makes_teams` (bool), `position` (display order), `start_time`, `end_time` (New York local; each list has its own time, e.g. Friday Skills 10–11 and Games 11–12. Filled from the template by trigger when left out).
 
 ### `events` (one practice)
 | Column | Type | Notes |
@@ -69,7 +69,7 @@ Everything is generic "events" with `type = 'practice'` for now, so games and so
 | template_id | uuid null → templates | Null for one-offs later |
 | type, title, location | | Copied from the template |
 | slug | text unique | `2026-10-08-wed`, used in URLs |
-| starts_at, ends_at | timestamptz | Stored in UTC |
+| starts_at, ends_at | timestamptz | Stored in UTC. Always the earliest list start and the latest list end |
 | opens_at | timestamptz **null** | Null = manual and not opened yet. "Open sign-ups" sets it to `now()` |
 | locks_at | timestamptz = `starts_at − 2h` | Kept by a trigger on insert and on every change to `starts_at` |
 | edited_at | timestamptz null | Set when the board edits this practice. Template changes then skip it |
@@ -79,7 +79,9 @@ Everything is generic "events" with `type = 'practice'` for now, so games and so
 - **Saving a template** (`apply_template`) rebuilds its future events that haven't opened, haven't been edited, and have no sign-ups. Pausing does the same, so paused weeks disappear from the home page.
 
 ### `event_lists`
-`id`, `event_id`, `name`, `cap`, `makes_teams`, `position`, `teams_sent_at` (null until **Send teams**).
+`id`, `event_id`, `name`, `cap`, `makes_teams`, `position`, `starts_at`, `ends_at` (the list's own time, copied from `template_lists`; filled from the event by trigger when left out), `teams_sent_at` (null until **Send teams**).
+
+- `edit_event(event, location, lists jsonb, notify)` sets each list's times; the practice's `starts_at`/`ends_at` (and so `locks_at`) follow its lists. The list locks 2 hours before the **first** list starts.
 
 ### `members`
 | Column | Type | Notes |
@@ -112,6 +114,13 @@ Everything is generic "events" with `type = 'practice'` for now, so games and so
 - **Main list order:** `coalesce(promoted_at, created_at)`, so people promoted later appear at the bottom.
 - **Waitlist order:** `created_at`. The first row is tagged "Next up".
 - **Late drops page:** `where dropped_late`. No separate drops table is needed.
+
+### Sign-up links (no table)
+Each practice has its own link, `/p/<slug>?k=<key>`, where the key is an HMAC of the event id with `DROP_LINK_SECRET` (see `src/lib/signup-link.ts`).
+- The board copies it (or a ready-made WhatsApp post) from the practice page and posts it in the group. The home page and a practice page without a valid key only say "Get the link in WhatsApp", so people outside the group can't see or join practices.
+- The key stops working when the practice ends, so old links don't let anyone into later practices.
+- Emails that point at the practice page ("See all teams") carry the key, so people who signed up can always get back.
+- Rotating `DROP_LINK_SECRET` also invalidates every sign-up link already posted.
 
 ### Personal drop-out links (no table)
 A link is `/drop/<event_id>.<member_id>.<signature>`, where the signature is an HMAC of the two ids with `DROP_LINK_SECRET` (see `src/lib/drop-link.ts`).

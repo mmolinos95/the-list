@@ -1,7 +1,8 @@
 "use client";
 
 import { ConfirmButton, Flash, useAction } from "@/components/admin-ui";
-import { Button } from "@/components/ui";
+import { useState } from "react";
+import { Button, type ButtonKind } from "@/components/ui";
 import { openSignups, retryFailedEmails } from "../actions";
 
 export function OpenSignupsButton({ eventId, className = "" }: { eventId: string; className?: string }) {
@@ -14,6 +15,28 @@ export function OpenSignupsButton({ eventId, className = "" }: { eventId: string
       className={className}
       action={() => openSignups(eventId)}
     />
+  );
+}
+
+/** Copies `text` and says so for a moment. Falls back to a prompt where the clipboard is blocked. */
+export function CopyButton({ text, label, kind = "outline", className = "" }: { text: string; label: string; kind?: ButtonKind; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      kind={kind}
+      className={className}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        } catch {
+          window.prompt("Copy this:", text);
+        }
+      }}
+    >
+      {copied ? "Copied ✓" : label}
+    </Button>
   );
 }
 

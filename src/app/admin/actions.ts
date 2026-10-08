@@ -114,42 +114,94 @@ export async function addSignup(input: AddInput) {
 export type EditInput = {
   eventId: string;
   date: string;
-  start: string;
-  end: string;
   location: string;
-  caps: { listId: string; cap: number }[];
+  lists: { listId: string; start: string; end: string; cap: number }[];
   notify: boolean;
+  /** Also copy the place, list times and caps to the weekly schedule. Presidents only. */
+  forFuture: boolean;
 };
+
+const HHMM = /^\d{2}:\d{2}$/;
 
 export async function editPractice(input: EditInput) {
   return run(async () => {
-    await boardOnly();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || !/^\d{2}:\d{2}$/.test(input.start) || !/^\d{2}:\d{2}$/.test(input.end)) {
-      throw new Problem("Pick a date, start time and end time.");
-    }
-    if (input.end <= input.start) throw new Problem("The end time has to be after the start time.");
+    const me = await boardOnly();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Problem("Pick a date.");
+    if (input.lists.length === 0 || input.lists.some((l) => !HHMM.test(l.start) || !HHMM.test(l.end))) throw new Problem("Fill in every start and end time.");
+    if (input.lists.some((l) => l.end <= l.start)) throw new Problem("The end time has to be after the start time.");
     if (!input.location.trim()) throw new Problem("Add a place.");
-    if (input.caps.some((c) => !Number.isInteger(c.cap) || c.cap < 1 || c.cap > 500)) throw new Problem("Caps have to be between 1 and 500.");
+    if (input.lists.some((l) => !Number.isInteger(l.cap) || l.cap < 1 || l.cap > 500)) throw new Problem("Caps have to be between 1 and 500.");
+    if (input.forFuture && me.role !== "president") throw new NotAllowed("Only presidents can change the weekly schedule.");
 
     const supabase = db();
-    const { data: lists } = await supabase.from("event_lists").select("id, cap").eq("event_id", input.eventId);
+    const { data: event, error } = await supabase
+      .from("events")
+      .select("template_id, template:templates(weekday), event_lists(id, name, cap, position)")
+      .eq("id", input.eventId)
+      .single();
+    if (error) throw new Error(error.message);
+    const current = event.event_lists as { id: string; name: string; cap: number; position: number }[];
+    const weekday = (event.template as unknown as { weekday: number } | null)?.weekday;
+    if (input.forFuture && weekday !== new Date(`${input.date}T12:00:00Z`).getUTCDay()) {
+      throw new Problem("This practice moved to another day, so it can't update the weekly schedule. Edit the schedule instead.");
+    }
+
     const emailed = await rpc<number>("edit_event", {
       p_event: input.eventId,
-      p_starts_at: fromLocalInputs(input.date, input.start),
-      p_ends_at: fromLocalInputs(input.date, input.end),
       p_location: input.location.trim(),
+      p_lists: input.lists.map((l) => ({
+        id: l.listId,
+        starts_at: fromLocalInputs(input.date, l.start),
+        ends_at: fromLocalInputs(input.date, l.end),
+      })),
       p_notify: input.notify,
     });
     let promoted = 0;
-    for (const c of input.caps) {
-      const current = lists?.find((l) => l.id === c.listId);
-      if (current && current.cap !== c.cap) promoted += await rpc<number>("set_list_cap", { p_list: c.listId, p_cap: c.cap });
+    for (const c of input.lists) {
+      const list = current.find((l) => l.id === c.listId);
+      if (list && list.cap !== c.cap) promoted += await rpc<number>("set_list_cap", { p_list: c.listId, p_cap: c.cap });
     }
     const parts = ["Saved."];
     if (emailed) parts.push(`Emailed ${players(emailed)}.`);
     if (promoted) parts.push(`${players(promoted)} moved up from the waitlist.`);
+    if (input.forFuture && event.template_id) parts.push(await copyToTemplate(event.template_id, input, current));
     return parts.join(" ");
   });
+}
+
+/** "Also use for future <weekday>s": lists are matched to the schedule's by position and name. */
+async function copyToTemplate(templateId: string, input: EditInput, lists: { id: string; name: string; position: number }[]) {
+  const supabase = db();
+  const { data, error } = await supabase.from("template_lists").select("id, name, position, start_time, end_time").eq("template_id", templateId);
+  if (error) throw new Error(error.message);
+  const rows = data as { id: string; name: string; position: number; start_time: string; end_time: string }[];
+  let missed = 0;
+  for (const l of input.lists) {
+    const list = lists.find((x) => x.id === l.listId);
+    const row = list && rows.find((r) => r.position === list.position && r.name === list.name);
+    if (!row) {
+      missed++;
+      continue;
+    }
+    const { error: e } = await supabase.from("template_lists").update({ start_time: l.start, end_time: l.end, cap: l.cap }).eq("id", row.id);
+    if (e) throw new Error(e.message);
+    Object.assign(row, { start_time: l.start, end_time: l.end });
+  }
+  const hm = (t: string) => t.slice(0, 5);
+  const { error: e } = await supabase
+    .from("templates")
+    .update({
+      location: input.location.trim(),
+      start_time: rows.map((r) => hm(r.start_time)).sort()[0],
+      end_time: rows.map((r) => hm(r.end_time)).sort().at(-1),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", templateId);
+  if (e) throw new Error(e.message);
+  await rpc("apply_template", { p_template: templateId });
+  return missed
+    ? "The weekly schedule is updated too, except for lists it doesn't have."
+    : "The weekly schedule is updated too.";
 }
 
 export async function messagePractice(eventId: string, subject: string, body: string, includeWaitlist: boolean) {
@@ -207,13 +259,11 @@ export type TemplateInput = {
   id: string | null;
   title: string;
   weekday: number;
-  start: string;
-  end: string;
   location: string;
   openMode: "auto" | "manual";
   openDaysBefore: number;
   openTime: string;
-  lists: { name: string; cap: number; makesTeams: boolean }[];
+  lists: { name: string; cap: number; makesTeams: boolean; start: string; end: string }[];
 };
 
 export async function saveTemplate(input: TemplateInput) {
@@ -222,10 +272,10 @@ export async function saveTemplate(input: TemplateInput) {
     const time = /^\d{2}:\d{2}$/;
     if (!input.title.trim()) throw new Problem("Give it a name, like “Wednesday practice”.");
     if (!(input.weekday >= 0 && input.weekday <= 6)) throw new Problem("Pick a day.");
-    if (!time.test(input.start) || !time.test(input.end) || !time.test(input.openTime)) throw new Problem("Fill in all the times.");
-    if (input.end <= input.start) throw new Problem("The end time has to be after the start time.");
     if (!input.location.trim()) throw new Problem("Add a place.");
     if (input.lists.length === 0) throw new Problem("Add at least one list.");
+    if (!time.test(input.openTime) || input.lists.some((l) => !time.test(l.start) || !time.test(l.end))) throw new Problem("Fill in all the times.");
+    if (input.lists.some((l) => l.end <= l.start)) throw new Problem("The end time has to be after the start time.");
     if (input.lists.some((l) => !l.name.trim())) throw new Problem("Every list needs a name.");
     if (input.lists.some((l) => !Number.isInteger(l.cap) || l.cap < 1 || l.cap > 500)) throw new Problem("Caps have to be between 1 and 500.");
     if (!(input.openDaysBefore >= 0 && input.openDaysBefore <= 14)) throw new Problem("Pick when sign-ups open.");
@@ -234,8 +284,9 @@ export async function saveTemplate(input: TemplateInput) {
     const row = {
       title: input.title.trim(),
       weekday: input.weekday,
-      start_time: input.start,
-      end_time: input.end,
+      // The practice runs from its first list to its last.
+      start_time: input.lists.map((l) => l.start).sort()[0],
+      end_time: input.lists.map((l) => l.end).sort().at(-1),
       location: input.location.trim(),
       open_mode: input.openMode,
       open_days_before: input.openDaysBefore,
@@ -254,7 +305,15 @@ export async function saveTemplate(input: TemplateInput) {
       id = data.id as string;
     }
     const { error } = await supabase.from("template_lists").insert(
-      input.lists.map((l, i) => ({ template_id: id, name: l.name.trim(), cap: l.cap, makes_teams: l.makesTeams, position: i })),
+      input.lists.map((l, i) => ({
+        template_id: id,
+        name: l.name.trim(),
+        cap: l.cap,
+        makes_teams: l.makesTeams,
+        position: i,
+        start_time: l.start,
+        end_time: l.end,
+      })),
     );
     if (error) throw new Error(error.message);
     await rpc("apply_template", { p_template: id });

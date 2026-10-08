@@ -3,8 +3,9 @@ import { Suspense } from "react";
 import { ButtonLink, Card, Chip, TextLink } from "@/components/ui";
 import { getAdminPractices, getFailedEmailCount, getTemplates } from "@/lib/admin-data";
 import { requireBoard } from "@/lib/auth";
+import { shareFor } from "@/lib/share";
 import { monthDay, timeRange, weekdayLong } from "@/lib/time";
-import { OpenSignupsButton, RetryEmailsButton } from "./buttons";
+import { CopyButton, OpenSignupsButton, RetryEmailsButton } from "./buttons";
 import { AdminStageChip, countLine, needsTeams } from "./summary";
 
 // B1: a to-do list, not a dashboard. Each practice shows the one thing it needs next.
@@ -59,6 +60,7 @@ async function Practices() {
       <ul className="space-y-3">
         {practices.map((p) => {
           const href = `/admin/p/${p.event.slug}`;
+          const live = p.stage !== "cancelled" && p.stage !== "past";
           return (
             <li key={p.event.id}>
               <Card>
@@ -79,7 +81,7 @@ async function Practices() {
                       )}
                     </div>
                   </div>
-                  {p.stage !== "cancelled" && <p className="mt-3 text-sm">{p.lists.map(countLine).join(" · ")}</p>}
+                  {p.stage !== "cancelled" && <p className="mt-3 text-sm">{p.lists.map((l) => countLine(l, p.event)).join(" · ")}</p>}
                 </Link>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   {p.stage === "waiting" ? (
@@ -98,6 +100,7 @@ async function Practices() {
                       View
                     </ButtonLink>
                   )}
+                  {live && <CopyButton text={shareFor(p.event, p.lists).post} label="Copy post" kind="ghost" />}
                 </div>
               </Card>
             </li>

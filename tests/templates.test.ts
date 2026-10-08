@@ -10,7 +10,7 @@ const event = {
   ends_at: "2026-10-14T18:00:00Z",
   locks_at: "2026-10-14T14:30:00Z",
 };
-const ctx = { siteUrl: "https://list.example", dropUrl: "https://list.example/drop/abc" };
+const ctx = { siteUrl: "https://list.example", dropUrl: "https://list.example/drop/abc", practiceUrl: "https://list.example/p/2026-10-14-wed?k=key" };
 
 const payloads: Record<string, Record<string, unknown>> = {
   signup: { name: "Ana Diaz", event, lists: [{ list: "Skills", spot: "main", position: 3, cap: 40 }, { list: "Games", spot: "waitlist", position: 2, cap: 40 }] },
@@ -39,6 +39,12 @@ describe("email templates", () => {
     expect(m.subject).toBe("You're in for Wednesday ✅");
     expect(m.text).toContain("12:30–2 PM");
     expect(m.html).toContain(ctx.dropUrl);
+  });
+
+  it("links the team email to the practice page with its sign-up key", () => {
+    const m = render("team", payloads.team, ctx);
+    expect(m.html).toContain("See all teams");
+    expect(m.html).toContain("?k=key");
   });
 
   it("renders the login email", () => {

@@ -75,6 +75,10 @@ export async function signUp(db: Db, eventId: string, listIds: string[], name: s
     email,
     phone,
   ]);
+  // PGlite's clock only ticks every millisecond (real Postgres: every microsecond),
+  // so back-to-back sign-ups could tie on created_at and the waitlist order would
+  // fall back to the random id. Wait for the next tick, like real people would.
+  await new Promise((r) => setTimeout(r, 2));
   return row.r;
 }
 

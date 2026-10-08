@@ -335,6 +335,78 @@ describe("weekly schedule", () => {
   });
 });
 
+describe("list times", () => {
+  const local = (col: string) => `to_char(${col} at time zone 'America/New_York', 'HH24:MI')`;
+
+  it("gives each practice its lists' own times, running from the first to the last", async () => {
+    const t = await one<{ id: string }>(
+      db,
+      `insert into templates (title, weekday, start_time, end_time, location) values ('Friday practice', 5, '10:00', '12:00', 'Riverside Park') returning id`,
+    );
+    await db.query(
+      `insert into template_lists (template_id, name, cap, makes_teams, position, start_time, end_time)
+       values ($1, 'Skills', 40, false, 0, '10:00', '11:00'), ($1, 'Games', 40, true, 1, '11:00', '12:00')`,
+      [t.id],
+    );
+    await db.query(`select create_upcoming_events(14)`);
+    const ev = await one<{ id: string; start: string; end: string; lock: string }>(
+      db,
+      `select id, ${local("starts_at")} as start, ${local("ends_at")} as end, ${local("locks_at")} as lock from events order by starts_at limit 1`,
+    );
+    expect(ev).toMatchObject({ start: "10:00", end: "12:00", lock: "08:00" });
+    const lists = await all(db, `select name, ${local("starts_at")} as start, ${local("ends_at")} as end from event_lists where event_id = $1 order by position`, [ev.id]);
+    expect(lists).toEqual([
+      { name: "Skills", start: "10:00", end: "11:00" },
+      { name: "Games", start: "11:00", end: "12:00" },
+    ]);
+  });
+
+  it("lists added without times take the practice's", async () => {
+    const ev = await makeEvent(db);
+    const row = await one<{ same: boolean }>(
+      db,
+      `select l.starts_at = e.starts_at and l.ends_at = e.ends_at as same from event_lists l join events e on e.id = l.event_id where e.id = $1`,
+      [ev.id],
+    );
+    expect(row.same).toBe(true);
+  });
+
+  it("edit_event moves each list, and the practice and its lock follow", async () => {
+    const ev = await makeEvent(db, { startsIn: "3 days", lists: [{ name: "Skills", cap: 40 }, { name: "Games", cap: 40 }] });
+    await signUp(db, ev.id, [ev.lists.Games], "Ana", "ana@x.com");
+    const base = (await one<{ s: string }>(db, `select starts_at::text as s from events where id = $1`, [ev.id])).s;
+    const at = (h: number) => new Date(Date.parse(base) + h * 3_600_000).toISOString();
+    const n = await one<{ n: number }>(db, `select edit_event($1, ' Pier 40 ', $2::jsonb, true) as n`, [
+      ev.id,
+      JSON.stringify([
+        { id: ev.lists.Skills, starts_at: at(1), ends_at: at(2) },
+        { id: ev.lists.Games, starts_at: at(2), ends_at: at(3) },
+      ]),
+    ]);
+    expect(n.n).toBe(1);
+    const e = await one<{ location: string; s: string; e: string; l: string; edited: boolean }>(
+      db,
+      `select location, starts_at = $2::timestamptz as s, ends_at = $3::timestamptz as e, locks_at = $4::timestamptz as l, edited_at is not null as edited
+         from events where id = $1`,
+      [ev.id, at(1), at(3), at(-1)],
+    );
+    expect(e).toEqual({ location: "Pier 40", s: true, e: true, l: true, edited: true });
+    const changed = await emails("changed");
+    expect(changed.map((m) => m.to_address)).toEqual(["ana@x.com"]);
+  });
+
+  it("rejects a list that ends before it starts", async () => {
+    const ev = await makeEvent(db);
+    const now = Date.now();
+    await expect(
+      db.query(`select edit_event($1, 'Riverside Park', $2::jsonb, false)`, [
+        ev.id,
+        JSON.stringify([{ id: ev.lists.Games, starts_at: new Date(now + 7_200_000).toISOString(), ends_at: new Date(now + 3_600_000).toISOString() }]),
+      ]),
+    ).rejects.toThrow("event_lists_ends_at");
+  });
+});
+
 describe("housekeeping", () => {
   it("deletes members idle for 12 months, with their history", async () => {
     const ev = await makeEvent(db);

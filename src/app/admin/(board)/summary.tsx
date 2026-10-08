@@ -1,9 +1,12 @@
+import { listTime } from "@/components/practice";
 import { Chip } from "@/components/ui";
 import type { AdminList, AdminPractice } from "@/lib/admin-data";
 import { relativeDay } from "@/lib/time";
 
-export function countLine(l: Pick<AdminList, "name" | "cap" | "main" | "waitlist">) {
-  return `${l.name} ${l.main.length}/${l.cap}${l.waitlist.length ? ` + ${l.waitlist.length} waiting` : ""}`;
+/** "Games 12/40 + 3 waiting", with the list's own time ("Skills 10–11 AM 12/40") when it has one. */
+export function countLine(l: Pick<AdminList, "name" | "cap" | "main" | "waitlist" | "starts_at" | "ends_at">, event: AdminPractice["event"]) {
+  const time = listTime(l, event);
+  return `${l.name}${time ? ` ${time}` : ""} ${l.main.length}/${l.cap}${l.waitlist.length ? ` + ${l.waitlist.length} waiting` : ""}`;
 }
 
 export const needsTeams = (p: AdminPractice) =>

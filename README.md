@@ -1,8 +1,8 @@
 # CBS FC · The List
 
-_Your spot, sorted._ The practice sign-up list for CBS FC: members sign up from one link pinned in WhatsApp, the overflow goes to a waitlist that moves up on its own, and the board runs practices and teams from their phones.
+_Your spot, sorted._ The practice sign-up list for CBS FC: members sign up from the link the board posts in WhatsApp for each practice, the overflow goes to a waitlist that moves up on its own, and the board runs practices and teams from their phones.
 
-- **Members** (no account): `/` → a practice → sign up. Drop out with the personal link in their email.
+- **Members** (no account): the practice's link from WhatsApp (`/p/<date-day>?k=…`) → sign up. Drop out with the personal link in their email. Without a valid link, the site only says "Get the link in WhatsApp".
 - **Board** (email login link, no password): `/admin`.
 - Requirements: [PLAN.md](PLAN.md) · Screens: [SCREENS.md](SCREENS.md) · Database: [DATA_MODEL.md](DATA_MODEL.md)
 
@@ -42,7 +42,7 @@ You need: a GitHub account with this repo, and the club Google account. Use the 
    | `SUPABASE_URL` | Project URL from Supabase |
    | `SUPABASE_PUBLISHABLE_KEY` | Publishable key |
    | `SUPABASE_SECRET_KEY` | Secret key (keep it secret: it can read everything) |
-   | `DROP_LINK_SECRET` | A long random string (`openssl rand -base64 32`). Changing it breaks drop-out links already emailed. |
+   | `DROP_LINK_SECRET` | A long random string (`openssl rand -base64 32`). Signs drop-out and sign-up links; changing it breaks the ones already sent. |
    | `CRON_SECRET` | Another long random string. Vercel sends it to the daily job automatically. |
    | `GMAIL_USER` | The club Gmail address |
    | `GMAIL_APP_PASSWORD` | The app password from step 2 |
@@ -51,7 +51,7 @@ You need: a GitHub account with this repo, and the club Google account. Use the 
 3. **Deploy.** The daily job in [vercel.json](vercel.json) is picked up automatically (Settings → Cron Jobs shows it).
 4. Open `https://<your-app>.vercel.app/admin/login`, enter the president's email, and press the link in the email.
 5. On **Schedule**, check the practices. On **Board**, invite the rest of the board.
-6. Pin `https://<your-app>.vercel.app` in the WhatsApp group. Done.
+6. For each practice, open it under **Practices**, press **Copy WhatsApp post**, and paste it in the group. Each practice has its own link that stops working when it ends, so there's no permanent link to pin.
 
 ---
 
@@ -95,4 +95,4 @@ Point `.env.local` at a separate Supabase project for development, not the club'
 
 Next.js 16 with Cache Components: pages render a static shell and stream the live data inside `<Suspense>`. Read `node_modules/next/dist/docs/` before changing framework-level code (see [AGENTS.md](AGENTS.md)).
 
-All times are stored in UTC and shown in New York time. Lists lock 2 hours before kickoff.
+All times are stored in UTC and shown in New York time. Each list has its own time; a practice runs from its first list to its last and locks 2 hours before the first one.
