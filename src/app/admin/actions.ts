@@ -117,7 +117,7 @@ export type EditInput = {
   location: string;
   lists: { listId: string; start: string; end: string; cap: number }[];
   notify: boolean;
-  /** Also copy the place, list times and caps to the weekly schedule. Presidents only. */
+  /** Also copy the place, list times and caps to the weekly schedule. */
   forFuture: boolean;
 };
 
@@ -125,13 +125,12 @@ const HHMM = /^\d{2}:\d{2}$/;
 
 export async function editPractice(input: EditInput) {
   return run(async () => {
-    const me = await boardOnly();
+    await boardOnly();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Problem("Pick a date.");
     if (input.lists.length === 0 || input.lists.some((l) => !HHMM.test(l.start) || !HHMM.test(l.end))) throw new Problem("Fill in every start and end time.");
     if (input.lists.some((l) => l.end <= l.start)) throw new Problem("The end time has to be after the start time.");
     if (!input.location.trim()) throw new Problem("Add a place.");
     if (input.lists.some((l) => !Number.isInteger(l.cap) || l.cap < 1 || l.cap > 500)) throw new Problem("Caps have to be between 1 and 500.");
-    if (input.forFuture && me.role !== "president") throw new NotAllowed("Only presidents can change the weekly schedule.");
 
     const supabase = db();
     const { data: event, error } = await supabase
@@ -253,7 +252,7 @@ export async function sendTeams(eventId: string) {
   });
 }
 
-// Weekly schedule (presidents) --------------------------------------------------
+// Weekly schedule (any board member) --------------------------------------------------
 
 export type TemplateInput = {
   id: string | null;
@@ -268,7 +267,7 @@ export type TemplateInput = {
 
 export async function saveTemplate(input: TemplateInput) {
   return run(async () => {
-    await presidentOnly();
+    await boardOnly();
     const time = /^\d{2}:\d{2}$/;
     if (!input.title.trim()) throw new Problem("Give it a name, like “Wednesday practice”.");
     if (!(input.weekday >= 0 && input.weekday <= 6)) throw new Problem("Pick a day.");
@@ -323,7 +322,7 @@ export async function saveTemplate(input: TemplateInput) {
 
 export async function setTemplatePaused(id: string, paused: boolean) {
   return run(async () => {
-    await presidentOnly();
+    await boardOnly();
     const { error } = await db().from("templates").update({ paused, updated_at: new Date().toISOString() }).eq("id", id);
     if (error) throw new Error(error.message);
     // Removes practices nobody has touched yet (paused), or creates them again (resumed).
@@ -334,7 +333,7 @@ export async function setTemplatePaused(id: string, paused: boolean) {
 
 export async function deleteTemplate(id: string) {
   return run(async () => {
-    await presidentOnly();
+    await boardOnly();
     await rpc("delete_template", { p_template: id });
     return "Deleted. Practices people already signed up for are kept.";
   });

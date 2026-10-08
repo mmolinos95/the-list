@@ -25,7 +25,7 @@ export default function PracticeAdminPage({ params }: PageProps<"/admin/p/[slug]
 }
 
 async function Detail({ params }: { params: Promise<{ slug: string }> }) {
-  const me = await requireBoard();
+  await requireBoard();
   const { slug } = await params;
   const practice = await getAdminPractice(slug);
   if (!practice) notFound();
@@ -73,7 +73,6 @@ async function Detail({ params }: { params: Promise<{ slug: string }> }) {
         practice={practice}
         lockTime={clock(event.locks_at)}
         form={form}
-        president={me.role === "president"}
       />
     </>
   );

@@ -51,7 +51,7 @@ export default function HelpPage() {
       <Section title="When plans change">
         <p>Open the practice and use the ⋯ menu:</p>
         <ul className="list-disc space-y-1 pl-5">
-          <li><b>Edit this practice</b>: new date, place, or each list&apos;s time and cap for that day. Presidents can tick <b>Also use for future Fridays</b> (or whichever day) to change the weekly schedule too.</li>
+          <li><b>Edit this practice</b>: new date, place, or each list&apos;s time and cap for that day. Tick <b>Also use for future Fridays</b> (or whichever day) to change the weekly schedule too.</li>
           <li><b>Message the list</b>: an email to everyone signed up.</li>
           <li><b>Cancel practice</b>: emails everyone and shows “Practice is off”.</li>
         </ul>
@@ -59,8 +59,8 @@ export default function HelpPage() {
       </Section>
 
       <Section title="Who can do what">
-        <p><b>Board members</b> run practices: open sign-ups, manage the lists, promote, build and send teams, message, cancel.</p>
-        <p><b>Presidents</b> can also edit the weekly schedule and invite or remove board members.</p>
+        <p><b>Board members</b> run practices and the weekly schedule: open sign-ups, manage the lists, promote, build and send teams, message, cancel, and edit the schedule.</p>
+        <p><b>Presidents</b> can also invite or remove board members and change roles.</p>
         <p>
           <b>Yearly handover:</b> on the <TextLink href="/admin/board">Board</TextLink> page, invite the new board, make the new presidents presidents, then remove yourselves. The app always keeps at least one president.
         </p>

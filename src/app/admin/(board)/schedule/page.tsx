@@ -4,7 +4,7 @@ import { getTemplates } from "@/lib/admin-data";
 import { requireBoard } from "@/lib/auth";
 import { ScheduleEditor } from "./schedule-editor";
 
-// B7: the recurring practices. Presidents edit; board members can look.
+// B7: the recurring practices. Any board member can edit them.
 
 export const metadata: Metadata = { title: "Weekly schedule" };
 
@@ -23,7 +23,7 @@ export default function SchedulePage() {
 }
 
 async function Schedule() {
-  const me = await requireBoard();
+  await requireBoard();
   const templates = await getTemplates();
-  return <ScheduleEditor templates={templates} canEdit={me.role === "president"} />;
+  return <ScheduleEditor templates={templates} />;
 }

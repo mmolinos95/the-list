@@ -19,7 +19,7 @@ function recipients(lists: AdminList[], includeWaitlist: boolean) {
   return ids.size;
 }
 
-export function PracticeAdmin({ practice, lockTime, form, president }: { practice: AdminPractice; lockTime: string; form: Form; president: boolean }) {
+export function PracticeAdmin({ practice, lockTime, form }: { practice: AdminPractice; lockTime: string; form: Form }) {
   const { event, stage, lists } = practice;
   const [tab, setTab] = useState(lists[0]?.id);
   const [sheet, setSheet] = useState<null | "edit" | "message" | "cancel">(null);
@@ -74,7 +74,7 @@ export function PracticeAdmin({ practice, lockTime, form, president }: { practic
 
       {list && <ListPanel key={list.id} list={list} locked={locked} live={live} lockTime={lockTime} onFlash={setFlash} />}
 
-      <EditSheet open={sheet === "edit"} onClose={() => setSheet(null)} practice={practice} form={form} president={president} onFlash={setFlash} />
+      <EditSheet open={sheet === "edit"} onClose={() => setSheet(null)} practice={practice} form={form} onFlash={setFlash} />
       <MessageSheet open={sheet === "message"} onClose={() => setSheet(null)} practice={practice} onFlash={setFlash} />
       <CancelSheet open={sheet === "cancel"} onClose={() => setSheet(null)} practice={practice} onFlash={setFlash} />
     </div>
@@ -307,14 +307,12 @@ function EditSheet({
   onClose,
   practice,
   form,
-  president,
   onFlash,
 }: {
   open: boolean;
   onClose: () => void;
   practice: AdminPractice;
   form: Form;
-  president: boolean;
   onFlash: (r: ActionResult) => void;
 }) {
   const { pending, result, run, clear } = useAction();
@@ -329,7 +327,7 @@ function EditSheet({
   const notify = notifyTouched ? notifyChoice : moved;
   const n = recipients(practice.lists, true);
   // Only offered when the practice comes from the weekly schedule and stays on its day.
-  const canCopy = president && practice.event.template_id !== null && v.date === form.date;
+  const canCopy = practice.event.template_id !== null && v.date === form.date;
   const weekday = WEEKDAYS[new Date(`${form.date}T12:00:00Z`).getUTCDay()];
   const setList = (i: number, k: "start" | "end" | "cap") => (e: React.ChangeEvent<HTMLInputElement>) =>
     setV({ ...v, lists: v.lists.map((l, j) => (j === i ? { ...l, [k]: e.target.value } : l)) });

@@ -169,7 +169,7 @@ const templates = {
     };
   },
 
-  cancelled(d: { name: string; event: EventJson; reason: string | null }, ctx: EmailContext) {
+  cancelled(d: { name: string; event: EventJson; reason: string | null }) {
     return {
       subject: `${day(d.event)} practice is off`,
       html:

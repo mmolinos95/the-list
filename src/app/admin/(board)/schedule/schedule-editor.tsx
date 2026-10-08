@@ -50,14 +50,13 @@ function toInput(t: Template): TemplateInput {
   };
 }
 
-export function ScheduleEditor({ templates, canEdit }: { templates: Template[]; canEdit: boolean }) {
+export function ScheduleEditor({ templates }: { templates: Template[] }) {
   const [editing, setEditing] = useState<TemplateInput | null>(null);
   const [flash, setFlash] = useState<ActionResult | null>(null);
   const pause = useAction();
 
   return (
     <div className="space-y-3">
-      {!canEdit && <p className="rounded-xl bg-columbia-50 p-3 text-sm">Only presidents can change the schedule.</p>}
       <Flash result={flash ?? pause.result} onClose={() => (setFlash(null), pause.clear())} />
 
       {templates.length === 0 && (
@@ -86,35 +85,31 @@ export function ScheduleEditor({ templates, canEdit }: { templates: Template[]; 
             {t.template_lists.map((l) => listLine(t, l)).join(" | ")}
           </p>
           <p className="mt-1 text-sm">{opensLine(t)}</p>
-          {canEdit && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button kind="outline" className="h-10 text-lg" onClick={() => setEditing(toInput(t))}>
-                Edit
-              </Button>
-              <Button kind="ghost" className="h-10 text-lg" disabled={pause.pending} onClick={() => pause.run(() => setTemplatePaused(t.id, !t.paused))}>
-                {t.paused ? "Resume" : "Pause"}
-              </Button>
-              <ConfirmButton
-                label="Delete"
-                kind="ghost"
-                confirmKind="danger"
-                className="ml-auto h-10 text-lg text-kickoff"
-                title={`Delete ${WEEKDAYS[t.weekday]}?`}
-                body="Upcoming practices nobody has signed up for are removed. Practices with sign-ups stay, so nobody loses a spot. To skip a few weeks, use Pause instead."
-                confirm="Delete"
-                action={() => deleteTemplate(t.id)}
-                onDone={setFlash}
-              />
-            </div>
-          )}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button kind="outline" className="h-10 text-lg" onClick={() => setEditing(toInput(t))}>
+              Edit
+            </Button>
+            <Button kind="ghost" className="h-10 text-lg" disabled={pause.pending} onClick={() => pause.run(() => setTemplatePaused(t.id, !t.paused))}>
+              {t.paused ? "Resume" : "Pause"}
+            </Button>
+            <ConfirmButton
+              label="Delete"
+              kind="ghost"
+              confirmKind="danger"
+              className="ml-auto h-10 text-lg text-kickoff"
+              title={`Delete ${WEEKDAYS[t.weekday]}?`}
+              body="Upcoming practices nobody has signed up for are removed. Practices with sign-ups stay, so nobody loses a spot. To skip a few weeks, use Pause instead."
+              confirm="Delete"
+              action={() => deleteTemplate(t.id)}
+              onDone={setFlash}
+            />
+          </div>
         </Card>
       ))}
 
-      {canEdit && (
-        <Button kind={templates.length ? "outline" : "primary"} className="w-full" onClick={() => setEditing({ ...BLANK, lists: BLANK.lists.map((l) => ({ ...l })) })}>
-          + Add a weekly practice
-        </Button>
-      )}
+      <Button kind={templates.length ? "outline" : "primary"} className="w-full" onClick={() => setEditing({ ...BLANK, lists: BLANK.lists.map((l) => ({ ...l })) })}>
+        + Add a weekly practice
+      </Button>
 
       <p className="pt-2 text-xs text-muted">
         Saving updates upcoming practices that nobody has signed up for yet. To change just one practice, open it from Practices and choose “Edit this practice”.

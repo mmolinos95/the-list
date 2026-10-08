@@ -39,7 +39,7 @@ async function Teams({ params }: { params: Promise<{ slug: string }> }) {
       </p>
       {lists.length === 0 ? (
         <Card className="mt-5">
-          <p>None of this practice&apos;s lists are set to split into teams. A president can turn that on in the weekly schedule.</p>
+          <p>None of this practice&apos;s lists are set to split into teams. You can turn that on in the weekly schedule.</p>
         </Card>
       ) : practice.stage === "cancelled" ? (
         <Card className="mt-5">This practice was cancelled.</Card>

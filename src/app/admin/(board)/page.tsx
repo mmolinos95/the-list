@@ -38,13 +38,9 @@ async function Practices() {
             ? "Set up your weekly schedule and practices will appear here automatically, two weeks ahead."
             : "Every practice in the weekly schedule is paused, so none are coming up."}
         </p>
-        {me.role === "president" ? (
-          <ButtonLink href="/admin/schedule" className="mt-5">
-            {templates.length === 0 ? "Set up schedule" : "Open schedule"}
-          </ButtonLink>
-        ) : (
-          <p className="mt-4 text-sm text-muted">Ask a president to set up the weekly schedule.</p>
-        )}
+        <ButtonLink href="/admin/schedule" className="mt-5">
+          {templates.length === 0 ? "Set up schedule" : "Open schedule"}
+        </ButtonLink>
       </Card>
     );
   }

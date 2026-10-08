@@ -117,7 +117,7 @@ The body changes with the practice's stage:
 
 ### B3. Edit this practice
 - Date and place, then start, end and cap **per list**. The practice runs from the first list to the last and locks 2 hours before the first one.
-- Changes apply to this practice only, unless a president ticks ☐ **"Also use for future Fridays"**: that copies the place and each list's times and cap to the weekly schedule (lists matched by position and name), and rebuilds upcoming practices nobody has signed up for. It's hidden when the date moved to another day.
+- Changes apply to this practice only, unless you tick ☐ **"Also use for future Fridays"**: that copies the place and each list's times and cap to the weekly schedule (lists matched by position and name), and rebuilds upcoming practices nobody has signed up for. It's hidden when the date moved to another day.
 - Raising a cap before the lock promotes people from the waitlist automatically.
 - Lowering a cap never removes anyone already in. The help text says so.
 - Checkbox: ☐ "Email everyone on the list about this change". Default on if the date, a time or the place changed.
@@ -149,7 +149,7 @@ Uses the main list of every list marked "Split into teams" (Games).
   - Sign-ups open: ◉ **[the day before]** at **[9:00 AM]** ○ when a board member presses "Open sign-ups"
   - Locks 2 hours before the first list starts (fixed, with the explanation shown)
 - **Pause** toggle per practice, for breaks and exams: no new practices are created while it's paused.
-- Board members see this screen read-only, with "Only presidents can change the schedule."
+- Every board member can edit it, not just presidents.
 
 ### B8. Late drops (`/admin/drops`)
 - Newest first: name · practice · "dropped 1h 10m before kickoff".

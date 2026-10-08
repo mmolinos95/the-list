@@ -21,7 +21,7 @@ A web app, linked from the club WhatsApp group, where presidents schedule and la
 
 | Role | How they access | What they can do |
 |---|---|---|
-| **President** | Email login link (no password) | Everything a board member can do, plus edit the weekly schedule and invite/remove board members and change roles |
+| **President** | Email login link (no password) | Everything a board member can do, plus invite/remove board members and change roles. (Since 2026-10-08 every board member can edit the weekly schedule.) |
 | **Board member** | Email login link (no password) | Run practices: open sign-ups, edit/cancel a practice, add/remove sign-ups, manually promote, build & send teams, message the list, see drop history |
 | **Member** | No account. Signs up with name, email, and phone | Sign up, drop out via a personal link |
 
@@ -179,7 +179,7 @@ Steps 1–7 are built and pass typecheck, lint, `npm test` (45 tests, PGlite) an
 - Migration 3 (`supabase/migrations/20261008000003_list_times.sql`): `start_time/end_time` on `template_lists`, `starts_at/ends_at` on `event_lists`, `create_upcoming_events` copies list times, `edit_event(p_event, p_location, p_lists jsonb, p_notify)`.
 - Sign-up links (`src/lib/signup-link.ts`, `/p/<slug>?k=<key>`, valid until the practice ends); home page = "Get the link in WhatsApp".
 - Board practice page: **Sign-up link** card with **Copy WhatsApp post** / **Copy link**; **Copy post** on each board home card.
-- Edit practice sheet: date, place, and start/end/cap per list. Presidents get **"Also use for future <weekday>s"** (copies place, list times and caps to the template by position + name, then `apply_template`). Hidden, and refused by the server, when the date moved to another weekday.
+- Edit practice sheet: date, place, and start/end/cap per list. Every board member gets **"Also use for future <weekday>s"** (copies place, list times and caps to the template by position + name, then `apply_template`). Hidden, and refused by the server, when the date moved to another weekday.
 - Schedule editor: times live on each list; the template's start/end are saved as the min/max of its lists.
 - List times shown on board home, practice tabs and schedule cards when they differ from the practice's.
 - Seed = the real schedule. Docs (DATA_MODEL, SCREENS, README, `/admin/help`) updated.
