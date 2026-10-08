@@ -1,6 +1,6 @@
 # CBS Futbol Club — Attendance App Plan
 
-_Status: Supabase + Gmail set up; finishing per-list times and private sign-up links, then Vercel (last updated 2026-10-08)_
+_Status: live at cbsfc-the-list.vercel.app; next is the board dry run and the first WhatsApp post (last updated 2026-10-08)_
 
 ## Problem
 
@@ -185,18 +185,15 @@ Steps 1–7 are built and pass typecheck, lint, `npm test` (45 tests, PGlite) an
 - Seed = the real schedule. Docs (DATA_MODEL, SCREENS, README, `/admin/help`) updated.
 - Flaky test fixed: PGlite's clock only ticks every millisecond, so on a fast machine back-to-back sign-ups tied on `created_at` and the waitlist order fell back to the random id (a forced tie promotes the wrong person ~half the time). The test harness now waits 2 ms after each sign-up. Production is unaffected (Postgres has microsecond timestamps and sign-ups lock the list).
 
-### Next: needs Martin's machine or browser (can't be done from the cloud)
-8. In the Supabase SQL editor:
-   1. Run all of `supabase/migrations/20261008000003_list_times.sql`.
-   2. Rebuild the schedule and practices (no real sign-ups exist yet, so this is safe):
-      ```sql
-      delete from events;
-      delete from templates;
-      ```
-      then run **sections 2 and 3 only** of `supabase/seed.sql` (from `-- 2. The weekly schedule` to the end; skip section 1, the president is already there).
-   3. Check: `select title, location, start_time, end_time from templates order by weekday;` shows Mon/Wed 12:40–13:40 and Fri 10:00–12:00.
-9. Locally (`npm run dev`): log in, open a practice, **Copy WhatsApp post**, open the link in a private window and sign up; open `/` and the practice without `?k=` to see "Get the link in WhatsApp"; try **Edit this practice** with "Also use for future Fridays".
+### Done locally (2026-10-08, afternoon)
+- Migration 3 applied with the Supabase CLI (`npx supabase`, linked to `cbs-fc-the-list`; migrations 1–2 marked applied). The schedule was rebuilt from `seed.sql` sections 2–3.
+- End-to-end test passed: sign-up from a WhatsApp link, confirmation email, board view, drop-out of one list.
+- Fixed: the phone field's country select took the full width; country names broke hydration (Node and browser ICU data differ).
+- Emails redesigned: Core Blue header/footer with a gold rule, a transparent logo (`public/brand/lockup-email@2x.png`), and a dark palette (`prefers-color-scheme` + Outlook's `data-ogsc/ogsb`).
+- Code moved to the **cbs-futbol-club** GitHub org (private).
+- **Live: https://cbsfc-the-list.vercel.app** on the club's Vercel account (Hobby), with the daily cron. Deploys are CLI only (`npm run deploy`): Hobby won't build a private org repo, and blocks commits with co-authors outside the team.
 
-### After that
-- Vercel: import the repo, add the env vars from `.env.local`, deploy, set `SITE_URL` if a custom domain is added (sign-up links use it), then a board dry run before posting the first link in WhatsApp.
+### Next
+- Board dry run on the live site: president logs in, sets their name on **Board** (it's still "Developer", which shows in invite emails), invites the board, then **Copy WhatsApp post** for the next practice.
+- Remove Martin's test sign-up from Friday Oct 9 Games before posting.
 - Any new Figma work goes in Martin's Figma **Drafts**, not the UI/UX class folder.

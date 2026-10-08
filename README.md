@@ -35,8 +35,10 @@ You need: a GitHub account with this repo, and the club Google account. Use the 
 
 ### 3. Vercel (the app)
 
-1. At [vercel.com](https://vercel.com), **Add New → Project** and import this GitHub repo. Framework: Next.js (detected).
-2. Under **Environment Variables**, add everything in [.env.example](.env.example):
+Deploys go through the Vercel CLI, not Git: Vercel's free plan won't build a private repo owned by a GitHub organization. Pushing to GitHub does **not** deploy.
+
+1. Sign up at [vercel.com](https://vercel.com) with the club Google account (Hobby plan), then in this folder run `npx vercel login` and `npx vercel link`.
+2. Add the environment variables below to **Production** (`npx vercel env add NAME production`, or Settings → Environment Variables). Don't copy `SITE_URL=http://localhost:3000` from `.env.local`.
 
    | Name | Value |
    |---|---|
@@ -49,7 +51,7 @@ You need: a GitHub account with this repo, and the club Google account. Use the 
    | `GMAIL_APP_PASSWORD` | The app password from step 2 |
    | `SITE_URL` | Optional. Defaults to the Vercel production URL. Set it if you add a custom domain. |
 
-3. **Deploy.** The daily job in [vercel.json](vercel.json) is picked up automatically (Settings → Cron Jobs shows it).
+3. **Deploy:** commit, then `npm run deploy`. It deploys the last commit (see [scripts/deploy.sh](scripts/deploy.sh)). The daily job in [vercel.json](vercel.json) is picked up automatically (Settings → Cron Jobs shows it).
 4. Open `https://<your-app>.vercel.app/admin/login`, enter the president's email, and press the link in the email.
 5. On **Schedule**, check the practices. On **Board**, invite the rest of the board.
 6. For each practice, open it under **Practices**, press **Copy WhatsApp post**, and paste it in the group. Each practice has its own link that stops working when it ends, so there's no permanent link to pin.
@@ -61,14 +63,14 @@ You need: a GitHub account with this repo, and the club Google account. Use the 
 Nothing to do. The board's guide is in the app at `/admin/help`.
 
 - **Daily job** (`/api/cron`, 10:00 UTC): creates practices two weeks ahead, sends any emails still waiting, retries failed ones, and deletes members who haven't signed up in 12 months.
-- **Emails failing?** The board home shows a **Retry** button. Common causes: the Gmail app password was revoked (make a new one and update `GMAIL_APP_PASSWORD` on Vercel, then redeploy), or the daily limit was hit (they go out the next day).
+- **Emails failing?** The board home shows a **Retry** button. Common causes: the Gmail app password was revoked (make a new one and update `GMAIL_APP_PASSWORD` on Vercel, then `npm run deploy`), or the daily limit was hit (they go out the next day).
 - **Supabase paused?** Free projects pause after about a week without activity. The daily job normally prevents that, but if the site shows errors after a long break, open the Supabase dashboard and press **Restore project**.
 - **Locked out of the board?** If every president lost access, add one back in the Supabase SQL editor:
   ```sql
   insert into board_members (email, name, role) values ('new.president@example.com', 'Name', 'president')
   on conflict (email) do update set role = 'president';
   ```
-- **Yearly handover:** the outgoing presidents invite the new board in the app, make the new presidents presidents, then remove themselves. Then hand over the club Google account, which owns GitHub, Vercel and Supabase.
+- **Yearly handover:** the outgoing presidents invite the new board in the app, make the new presidents presidents, then remove themselves. Then hand over the club Google account (it owns Vercel, Supabase and the Gmail), and make the new maintainer an owner of the [cbs-futbol-club](https://github.com/cbs-futbol-club) GitHub organization, which holds the code.
 
 ---
 
