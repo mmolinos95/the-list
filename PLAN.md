@@ -144,9 +144,29 @@ A web app, linked from the club WhatsApp group, where presidents schedule and la
 - Existing mockups: mobile sign-up screen, sign-up confirmation email, practice poster.
   - Note: the mock's list shows "Sofia R."; we decided on **full names**.
 
+## Build plan (decided 2026-10-08)
+
+**Goal: the full app built this weekend, ready to roll out to the club by Sunday morning, Oct 11.** Paid features (WhatsApp/SMS, custom domain) wait until after the club has tested it. The link is a free `*.vercel.app` URL.
+
+Build in this order, so there's always a complete, working app to launch, even if the last steps slip:
+
+| # | Milestone | Done when |
+|---|---|---|
+| 0 | **Setup**: Next.js app, Supabase schema + RLS + functions, brand tokens (Bebas Neue, Inter, palette), deployed to Vercel | A blank branded page is live, and migrations run |
+| 1 | **Members**: home, practice page (all stages), sign-up, waitlist + auto-promotion, drop page, sign-up/promoted/late-drop emails | A member can sign up and drop out end to end on the live URL |
+| 2 | **Board core**: magic-link login, practices to-do home, practice detail (open sign-ups, add/remove/promote), weekly schedule, daily cron | The board can run a practice without touching the database |
+| 3 | **Teams**: shuffle + tap/drag builder, send teams, send updates, teams on the practice page | Teams go out by email |
+| 4 | **Board tools**: edit practice, cancel, message the list, late drops page, board invite/roles, help page | Everything in SCREENS.md exists |
+| 5 | **Hardening**: concurrency test for sign-ups, 12-month cleanup, email retry, handoff README, board dry run | Ready to post in WhatsApp |
+
+### Needed from Martin (accounts Claude can't create)
+- Supabase project (free) → project URL, anon key, service-role key.
+- Vercel account linked to GitHub, and a GitHub repo.
+- A Gmail account to send from, with 2-Step Verification on, plus an **app password**.
+- Emails of the first presidents (seeded by hand; after that they invite everyone else in the app).
+- Real Mon/Wed/Fri times, places, lists and caps. These can be entered in the app's schedule screen, so they don't block the build.
+
 ## Where we left off (2026-10-08)
-- Requirements, tech stack, and brand are settled. Nothing is built yet.
-- Screens and flows are done: see [SCREENS.md](SCREENS.md).
-- Data model is done: see [DATA_MODEL.md](DATA_MODEL.md).
+- Planning is complete: requirements (this file), [SCREENS.md](SCREENS.md), [DATA_MODEL.md](DATA_MODEL.md).
 - Any new Figma work goes in Martin's Figma **Drafts**, not the UI/UX class folder.
-- Next planning topic: **Build phases**: v1 → v2 → v3, to get club feedback early.
+- Next: build, starting with milestone 0.
