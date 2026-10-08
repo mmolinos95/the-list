@@ -82,7 +82,9 @@ export function PracticeBody({ practice, signupKey }: { practice: Practice; sign
         />
       )}
 
-      {stage !== "cancelled" && <ListTabs practice={practice} mine={mine} teamsOut={stage === "teams" || stage === "past"} />}
+      {stage !== "cancelled" && (
+        <ListTabs practice={practice} mine={mine} myLists={status?.spots.map((s) => s.listId) ?? []} teamsOut={stage === "teams" || stage === "past"} />
+      )}
     </div>
   );
 }
@@ -338,9 +340,15 @@ function SignupCard({
 
 // The public list -------------------------------------------------------------------
 
-function ListTabs({ practice, mine, teamsOut }: { practice: Practice; mine: Set<string>; teamsOut: boolean }) {
+function ListTabs({ practice, mine, myLists, teamsOut }: { practice: Practice; mine: Set<string>; myLists: string[]; teamsOut: boolean }) {
   const { event, lists } = practice;
-  const [tab, setTab] = useState(0);
+  // Open on the first list you're on, so signing up for Games alone shows Games.
+  // A new sign-up jumps there again; otherwise the tab you picked stays.
+  const [picked, setPicked] = useState<{ tab: number; for: string } | null>(null);
+  const myKey = myLists.join();
+  const mineIndex = lists.findIndex((l) => myLists.includes(l.id));
+  const tab = picked && picked.for === myKey ? picked.tab : Math.max(mineIndex, 0);
+  const setTab = (i: number) => setPicked({ tab: i, for: myKey });
   const list = lists[Math.min(tab, lists.length - 1)];
   if (!list) return null;
   const showTeams = teamsOut && list.makes_teams && !!list.teams_sent_at;
