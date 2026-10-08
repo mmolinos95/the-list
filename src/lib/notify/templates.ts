@@ -333,7 +333,7 @@ export function loginEmail(link: string, siteUrl: string, code?: string): Omit<O
   // "1234 5678": easier to read and type than one long run of digits.
   const half = code ? Math.ceil(code.length / 2) : 0;
   const spaced = code ? `${code.slice(0, half)} ${code.slice(half)}` : "";
-  const expiry = code ? "The link and code work once and expire in 1 hour." : "The link works once and expires in 1 hour.";
+  const expiry = code ? "The link and code work for 15 minutes. Asking for a new email replaces them." : "The link works for 15 minutes.";
   return {
     subject: code ? `${spaced} is your code for The List` : "Your login link for The List",
     html: layout(

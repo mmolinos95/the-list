@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { env } from "@/lib/env";
+import { codeMatches, isCurrent, loginCode, loginUrl, startSession } from "@/lib/login-link";
 import { emailChannel } from "@/lib/notify/email";
 import { loginEmail } from "@/lib/notify/templates";
 import { authClient, db } from "@/lib/supabase";
@@ -28,28 +29,14 @@ export async function sendLoginLink(_prev: LoginState, form: FormData): Promise<
   const { data: member } = await supabase.from("board_members").select("id, last_login_link_at").eq("email", email).maybeSingle();
   if (!member) return { message: SENT, email };
 
-  // One link a minute per person, so the form can't be used to flood an inbox.
+  // One email a minute per person, so the form can't be used to flood an inbox.
   if (member.last_login_link_at && Date.now() - Date.parse(member.last_login_link_at) < 60_000) return { message: SENT, email };
-  await supabase.from("board_members").update({ last_login_link_at: new Date().toISOString(), login_code_attempts: 0 }).eq("id", member.id);
+  // A new moment kills the previous email's link and code (see lib/login-link.ts).
+  const issuedAt = Date.now();
+  await supabase.from("board_members").update({ last_login_link_at: new Date(issuedAt).toISOString(), login_code_attempts: 0 }).eq("id", member.id);
 
-  let link = await supabase.auth.admin.generateLink({ type: "magiclink", email });
-  const user = link.data?.user;
-  if (link.error || !user?.email_confirmed_at) {
-    // First login: generateLink makes an unconfirmed account and returns a
-    // signup token, which verifyOtp({ type: "magiclink" }) rejects. Confirm the
-    // account (board_members already vouches for the email), then make a real link.
-    if (user) await supabase.auth.admin.updateUserById(user.id, { email_confirm: true });
-    else await supabase.auth.admin.createUser({ email, email_confirm: true });
-    link = await supabase.auth.admin.generateLink({ type: "magiclink", email });
-  }
-  if (link.error || !link.data.properties?.hashed_token) {
-    console.error("Login link failed", link.error);
-    return { message: "We couldn't make a login link right now. Try again in a minute.", error: true };
-  }
-
-  const url = `${env.siteUrl}/admin/auth/confirm?token_hash=${encodeURIComponent(link.data.properties.hashed_token)}`;
   try {
-    await emailChannel().send({ to: email, ...loginEmail(url, env.siteUrl, link.data.properties.email_otp) });
+    await emailChannel().send({ to: email, ...loginEmail(loginUrl(email, issuedAt), env.siteUrl, loginCode(email, issuedAt)) });
   } catch (err) {
     console.error("Login email failed", err);
     return { message: "We couldn't send the email right now. Try again in a minute.", error: true };
@@ -60,24 +47,25 @@ export async function sendLoginLink(_prev: LoginState, form: FormData): Promise<
 export type CodeState = { error: string } | null;
 
 /**
- * The code from the login email. For the home-screen app, which keeps
- * its own login separate from the browser the email link opens in.
+ * The code from the login email. For the home-screen app, which keeps its
+ * own login separate from the browser the email link opens in.
  */
 export async function confirmCode(_prev: CodeState, form: FormData): Promise<CodeState> {
   const email = emailSchema.safeParse(form.get("email"));
-  const code = String(form.get("code") ?? "").replace(/\D/g, "");
+  const code = String(form.get("code") ?? "");
   const wrong = { error: "That code didn't work. Check the latest email, or send a new one." };
-  // Supabase sets the length (6 to 10 digits; this project uses 8).
-  if (!email.success || code.length < 6 || code.length > 10) return wrong;
+  if (!email.success) return wrong;
 
   const supabase = db();
-  const { data: member } = await supabase.from("board_members").select("id, login_code_attempts").eq("email", email.data).maybeSingle();
-  if (!member) return wrong;
+  const { data: member } = await supabase.from("board_members").select("id, last_login_link_at, login_code_attempts").eq("email", email.data).maybeSingle();
+  if (!member?.last_login_link_at) return wrong;
   if (member.login_code_attempts >= MAX_CODE_TRIES) return { error: "Too many tries. Send yourself a new login email." };
+  const issuedAt = Date.parse(member.last_login_link_at);
+  if (!isCurrent(issuedAt, member.last_login_link_at)) return { error: "That code has expired. Send yourself a new login email." };
   await supabase.from("board_members").update({ login_code_attempts: member.login_code_attempts + 1 }).eq("id", member.id);
 
-  const { error } = await (await authClient()).auth.verifyOtp({ type: "email", email: email.data, token: code });
-  if (error) return wrong;
+  if (!codeMatches(code, loginCode(email.data, issuedAt))) return wrong;
+  if (!(await startSession(email.data))) return { error: "We couldn't log you in right now. Try again in a minute." };
   await supabase.from("board_members").update({ login_code_attempts: 0 }).eq("id", member.id);
   redirect("/admin");
 }
