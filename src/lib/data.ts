@@ -23,7 +23,8 @@ function shape(raw: RawEvent, now: Date): Practice {
       const rows = signups.map(({ members, ...s }) => ({ ...s, name: members?.name ?? "" }));
       return { ...list, ...splitList(rows) };
     });
-  const { event_lists: _, ...event } = raw;
+  const event: EventRow = { ...raw };
+  delete (event as Partial<RawEvent>).event_lists;
   return { event, lists, stage: stageOf(event, lists, now) };
 }
 

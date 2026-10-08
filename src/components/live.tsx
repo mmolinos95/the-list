@@ -38,16 +38,20 @@ export function Countdown({ to }: { to: string }) {
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
-    setNow(Date.now());
-    const id = setInterval(() => {
+    const tick = () => {
       const t = Date.now();
       setNow(t);
       if (t >= Date.parse(to)) {
         clearInterval(id);
         router.refresh();
       }
-    }, 250);
-    return () => clearInterval(id);
+    };
+    const id = setInterval(tick, 250);
+    const first = setTimeout(tick, 0);
+    return () => {
+      clearInterval(id);
+      clearTimeout(first);
+    };
   }, [to, router]);
 
   const p = parts(now === null ? 0 : Date.parse(to) - now);

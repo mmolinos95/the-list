@@ -81,7 +81,7 @@ async function Drop({ params }: { params: Promise<{ token: string }> }) {
       title={`${weekdayLong(ev.starts_at)} practice`}
       when={when}
       slug={ev.slug}
-      locked={Date.now() >= Date.parse(ev.locks_at)}
+      locked={stage === "locked" || stage === "teams"}
       lockTime={clock(ev.locks_at)}
       spots={spots}
     />

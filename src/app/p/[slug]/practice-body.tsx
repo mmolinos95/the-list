@@ -22,6 +22,8 @@ export function PracticeBody({ practice }: { practice: Practice }) {
   // Recognize this browser: if it signed up before, show its live status.
   useEffect(() => {
     const t = getLink(event.id);
+    // Browser storage is only readable after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setToken(t);
     if (t) myStatus(t).then((s) => s && setStatus(s));
   }, [event.id, practice]);
@@ -169,6 +171,8 @@ function SignupCard({
   useEffect(() => {
     const saved = getMe();
     if (saved) {
+      // Browser storage is only readable after hydration.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMeState(saved);
       setName(saved.name);
       setEmail(saved.email);
