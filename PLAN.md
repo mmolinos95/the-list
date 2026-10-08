@@ -1,6 +1,6 @@
 # CBS Futbol Club — Attendance App Plan
 
-_Status: built, waiting on accounts to deploy (last updated 2026-10-08)_
+_Status: Supabase + Gmail set up; finishing per-list times and private sign-up links, then Vercel (last updated 2026-10-08)_
 
 ## Problem
 
@@ -39,7 +39,8 @@ A web app, linked from the club WhatsApp group, where presidents schedule and la
 - An event can have **multiple lists** (e.g., Skills and Games), each with its own cap. A member can sign up for **both** in one tap, which sends one combined email.
 - A template can be **paused** (breaks, exams), and then no events get created.
 - The board can **cancel** a practice (with an optional reason, emailing everyone), **message the list**, **remove** a sign-up (fakes/duplicates), and **add someone by hand** (walk-ins; email optional).
-- Members reach everything from **one permanent link** pinned in WhatsApp, which shows this week's practices. Each practice also has its own shareable link.
+- **Private sign-up links (decided 2026-10-08):** each practice has its own secret link (`/p/<slug>?k=<key>`), which the board copies from the app into the WhatsApp post. It stops working when the practice ends, so people outside the group (or removed from it) can't keep signing up. Without a valid link the app shows nothing but "Get the link in WhatsApp". Always on, including the unofficial practices at the start of the year.
+- **Each list has its own time** (e.g. Friday: Skills 10–11, Games 11–12). A practice runs from its earliest list to its latest and locks 2 hours before the earliest.
 
 ### 2. Sign-up & waitlist
 - **First-come-first-served.** Sign-ups must be atomic, so two near-simultaneous submissions can never both take the last spot.
@@ -166,8 +167,29 @@ Build in this order, so there's always a complete, working app to launch, even i
 - Emails of the first presidents (seeded by hand; after that they invite everyone else in the app).
 - Real Mon/Wed/Fri times, places, lists and caps. These can be entered in the app's schedule screen, so they don't block the build.
 
-## Where we left off (2026-10-08)
-- Milestones 0–5 are built: member pages, board login and every board screen in SCREENS.md, teams, the daily job, email retry, the 12-month cleanup, and the handoff [README](README.md).
-- Checks: `npm test` (database rules, seed, email templates), lint, typecheck and `next build` all pass. Nothing has run against a real Supabase project yet.
-- Next: Martin creates the accounts (Supabase, Vercel, club Gmail app password), follows the README setup, and does a board dry run before posting the link in WhatsApp.
+## Where we left off (2026-10-08, evening)
+
+### Done
+- Milestones 0–5 built (see README). Supabase project `cbs-fc-the-list` is live: migrations 1–2 and the seed are loaded, public sign-ups are off, and `cbsfutbolclub@gmail.com` ("Developer") is the only president.
+- Club Gmail app password works; login links arrive by email. Local `.env.local` is complete (it's gitignored, so cloud sessions don't have it).
+- Fixed: every board member's first login link failed (`generateLink` returns a signup token for a new account; now the account is confirmed first). Fixed: board pages hit Next's "Date.now() while prerendering" error (`await connection()` in `getBoard`).
+
+### In progress: per-list times + private sign-up links (decided with Martin)
+Built so far (typecheck passes):
+- `supabase/migrations/20261008000003_list_times.sql`: `start_time/end_time` on `template_lists`, `starts_at/ends_at` on `event_lists` (filled from the parent by trigger when omitted), `create_upcoming_events` copies list times, and `edit_event` is now `edit_event(p_event, p_location, p_lists jsonb [{id, starts_at, ends_at}], p_notify)`, with the practice's times following its lists. **Not yet run on Supabase.**
+- `src/lib/signup-link.ts` (HMAC key per practice with `DROP_LINK_SECRET`, valid until `ends_at`), `src/components/no-access.tsx`, home page = NoAccess, practice page and `signUp` action check the key, drop page and emails use the keyed link, list times shown on the practice page (`listTime`).
+- `src/lib/share.ts`: sign-up URL + WhatsApp post text in the club's format. Not wired into the UI yet.
+
+To do, in order:
+1. Board practice page (`src/app/admin/(board)/p/[slug]`): a card with **Copy sign-up link** and **Copy WhatsApp post** (from `shareFor`, computed in `page.tsx`), shown while the practice is live. Also a "Copy post" button on each board home card.
+2. Edit practice sheet (`practice-admin.tsx` + `editPractice` in `src/app/admin/actions.ts`): replace start/end with per-list start/end (date stays), call the new `edit_event` signature, and add a checkbox **"Also use for future <weekday>s"** that copies location + each list's times and cap to the template (match lists by position and name), then runs `apply_template`.
+3. Schedule editor (`schedule-editor.tsx` + `saveTemplate`): drop the template-level start/end inputs; each list row gets start/end. Save the template's `start_time/end_time` as the min/max of its lists. Card header shows the overall range and each list's time.
+4. `admin-data` / board home / summary: show list times where they differ (reuse `listTime`).
+5. Tests: add DB tests for list times (creation copies list times; `edit_event` moves the practice's times and lock) and a unit test for `hasSignupAccess`; update the email template test ctx with `practiceUrl`. Investigate the flaky test "dropping out > before the lock, promotes the first waitlister" (fails about 1 run in 3; the code it tests did not change).
+6. Update `supabase/seed.sql` to the real schedule: Mon + Wed **Games only** 12:40–13:40 (cap 40, teams); Fri **Skills 10:00–11:00** (cap 40) + **Games 11:00–12:00** (cap 40, teams; end times assumed). Location for all: "Riverside Park (107th) entrance at 103rd St". Titles stay "Monday practice" etc.
+7. Docs: DATA_MODEL.md (new columns, signup links), SCREENS.md, README (no pinned link; board posts each practice's link), and the in-app help page (`/admin/help`).
+8. Needs Martin's machine or browser (can't be done from the cloud): run migration 3 in the Supabase SQL editor, then update the live templates to the schedule in step 6 and rebuild practices (no real sign-ups exist yet, so deleting all events and running `create_upcoming_events(14)` is safe).
+
+### After that
+- Vercel: import the repo, add the env vars from `.env.local`, deploy, set `SITE_URL` if a custom domain is added, then a board dry run before posting the first link in WhatsApp. Commit/push after Vercel + Gmail are confirmed working (Martin's preference).
 - Any new Figma work goes in Martin's Figma **Drafts**, not the UI/UX class folder.

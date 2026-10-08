@@ -35,21 +35,6 @@ export async function getPractice(slug: string): Promise<Practice | null> {
   return data ? shape(data as RawEvent, new Date()) : null;
 }
 
-/** Practices that haven't finished yet and start within the next 8 days. */
-export async function getUpcomingPractices(): Promise<Practice[]> {
-  await connection();
-  const now = new Date();
-  const until = new Date(now.getTime() + 8 * 86_400_000).toISOString();
-  const { data, error } = await db()
-    .from("events")
-    .select(PUBLIC_SELECT)
-    .gt("ends_at", now.toISOString())
-    .lt("starts_at", until)
-    .order("starts_at");
-  if (error) throw error;
-  return (data as RawEvent[]).map((e) => shape(e, now));
-}
-
 export type MySpot = {
   signupId: string;
   listId: string;

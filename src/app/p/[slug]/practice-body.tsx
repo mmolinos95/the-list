@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { getCountries, getCountryCallingCode, type CountryCode } from "libphonenumber-js";
 import { myStatus, signUp } from "@/app/actions";
 import { Countdown } from "@/components/live";
-import { listSummary } from "@/components/practice";
+import { listSummary, listTime } from "@/components/practice";
 import { Button, Card, Check, Field, inputClass, Label, TeamDot, WaitRing, cx } from "@/components/ui";
 import type { MySpot, Practice, PublicList } from "@/lib/data";
 import { getLink, getMe, setLink, setMe, type Me } from "@/lib/remember";
@@ -14,7 +14,7 @@ import { TEAM_LABEL, TEAMS } from "@/lib/types";
 
 type Status = { name: string | null; spots: MySpot[] };
 
-export function PracticeBody({ practice }: { practice: Practice }) {
+export function PracticeBody({ practice, signupKey }: { practice: Practice; signupKey: string }) {
   const { event, stage, lists } = practice;
   const [status, setStatus] = useState<Status | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -69,6 +69,7 @@ export function PracticeBody({ practice }: { practice: Practice }) {
       {canSignUp && remaining.length > 0 && (
         <SignupCard
           practice={practice}
+          signupKey={signupKey}
           lists={remaining}
           alsoMode={!!status?.spots.length}
           onDone={(t, s) => {
@@ -81,7 +82,7 @@ export function PracticeBody({ practice }: { practice: Practice }) {
         />
       )}
 
-      {stage !== "cancelled" && <ListTabs lists={lists} mine={mine} teamsOut={stage === "teams" || stage === "past"} />}
+      {stage !== "cancelled" && <ListTabs practice={practice} mine={mine} teamsOut={stage === "teams" || stage === "past"} />}
     </div>
   );
 }
@@ -146,11 +147,13 @@ const countryName = (() => {
 
 function SignupCard({
   practice,
+  signupKey,
   lists,
   alsoMode,
   onDone,
 }: {
   practice: Practice;
+  signupKey: string;
   lists: PublicList[];
   alsoMode: boolean;
   onDone: (token: string | null, status: Status) => void;
@@ -211,7 +214,7 @@ function SignupCard({
     setError(null);
     setNotice(null);
     start(async () => {
-      const res = await signUp({ eventId: event.id, listIds: [...picked], name, email, phone, country });
+      const res = await signUp({ eventId: event.id, signupKey, listIds: [...picked], name, email, phone, country });
       if (!res.ok) {
         setError({ message: res.error, field: res.field });
         return;
@@ -290,6 +293,7 @@ function SignupCard({
                   <input type="checkbox" className="mt-1 size-4 accent-gold" checked={on} onChange={() => toggle(l.id)} />
                   <span>
                     <span className="block font-display text-2xl leading-none">{l.name}</span>
+                    {listTime(l, event) && <span className="mt-0.5 block text-sm">{listTime(l, event)}</span>}
                     <span className={cx("mt-1 block text-[11px] font-bold uppercase tracking-wider", on ? "text-columbia" : "text-muted")}>
                       {full ? `Full · you'd be #${l.waitlist.length + 1} waiting` : listSummary(l)}
                     </span>
@@ -325,7 +329,8 @@ function SignupCard({
 
 // The public list -------------------------------------------------------------------
 
-function ListTabs({ lists, mine, teamsOut }: { lists: PublicList[]; mine: Set<string>; teamsOut: boolean }) {
+function ListTabs({ practice, mine, teamsOut }: { practice: Practice; mine: Set<string>; teamsOut: boolean }) {
+  const { event, lists } = practice;
   const [tab, setTab] = useState(0);
   const list = lists[Math.min(tab, lists.length - 1)];
   if (!list) return null;
@@ -347,7 +352,9 @@ function ListTabs({ lists, mine, teamsOut }: { lists: PublicList[]; mine: Set<st
               )}
             >
               <span className="block font-display text-2xl leading-none">{l.name}</span>
-              <span className={cx("text-[11px] font-bold uppercase tracking-wider", i === tab ? "text-columbia" : "text-muted")}>{listSummary(l)}</span>
+              <span className={cx("text-[11px] font-bold uppercase tracking-wider", i === tab ? "text-columbia" : "text-muted")}>
+                {[listTime(l, event), listSummary(l)].filter(Boolean).join(" · ")}
+              </span>
             </button>
           ))}
         </div>

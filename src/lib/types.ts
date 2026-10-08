@@ -45,6 +45,8 @@ export type TemplateList = {
   cap: number;
   makes_teams: boolean;
   position: number;
+  start_time: string;
+  end_time: string;
 };
 
 export type EventRow = {
@@ -69,6 +71,8 @@ export type EventList = {
   cap: number;
   makes_teams: boolean;
   position: number;
+  starts_at: string;
+  ends_at: string;
   teams_sent_at: string | null;
 };
 

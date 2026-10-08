@@ -1,6 +1,6 @@
-import type { Practice, PublicList } from "@/lib/data";
-import { relativeDay } from "@/lib/time";
-import { Chip } from "./ui";
+import type { PublicList } from "@/lib/data";
+import { timeRange } from "@/lib/time";
+import type { EventList, EventRow } from "@/lib/types";
 
 export function listSummary(l: Pick<PublicList, "name" | "cap" | "main" | "waitlist">) {
   const n = l.main.length;
@@ -8,27 +8,8 @@ export function listSummary(l: Pick<PublicList, "name" | "cap" | "main" | "waitl
   return `${n}/${l.cap}`;
 }
 
-/** The one status label for a practice, as on the home cards and headers. */
-export function StageChip({ practice }: { practice: Practice }) {
-  const { event, lists, stage } = practice;
-  switch (stage) {
-    case "cancelled":
-      return <Chip kind="red">Cancelled</Chip>;
-    case "past":
-      return <Chip>Done</Chip>;
-    case "teams":
-      return <Chip kind="dark">Teams are out</Chip>;
-    case "locked":
-      return <Chip kind="red">Locked</Chip>;
-    case "waiting":
-      return <Chip kind="neutral">Opens soon</Chip>;
-    case "soon":
-      return <Chip kind="neutral">Opens {relativeDay(event.opens_at!)}</Chip>;
-    case "open": {
-      const allFull = lists.every((l) => l.main.length >= l.cap);
-      const waiting = lists.reduce((n, l) => n + l.waitlist.length, 0);
-      if (allFull) return <Chip kind="gold">Full · {waiting} waiting</Chip>;
-      return <Chip kind="core">Open</Chip>;
-    }
-  }
+/** A list's own time ("11 AM–12 PM"), or null when it runs for the whole practice. */
+export function listTime(l: Pick<EventList, "starts_at" | "ends_at">, event: Pick<EventRow, "starts_at" | "ends_at">) {
+  const same = Date.parse(l.starts_at) === Date.parse(event.starts_at) && Date.parse(l.ends_at) === Date.parse(event.ends_at);
+  return same ? null : timeRange(l.starts_at, l.ends_at);
 }

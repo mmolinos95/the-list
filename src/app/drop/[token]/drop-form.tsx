@@ -10,7 +10,8 @@ export function DropForm(props: {
   firstName: string;
   title: string;
   when: string;
-  slug: string;
+  /** The practice page, with its sign-up key. */
+  practiceHref: string;
   locked: boolean;
   lockTime: string;
   spots: MySpot[];
@@ -29,7 +30,7 @@ export function DropForm(props: {
           You dropped out of {done.join(" and ")} for {props.title.toLowerCase()}. Thanks for freeing up the spot{props.firstName ? `, ${props.firstName}` : ""}.
         </p>
         <p className="mt-2 text-sm text-muted">Changed your mind? Sign up again. You&apos;ll join the end of the list.</p>
-        <ButtonLink href={`/p/${props.slug}`} kind="outline" className="mt-5">
+        <ButtonLink href={props.practiceHref} kind="outline" className="mt-5">
           Back to the practice
         </ButtonLink>
       </Card>
@@ -96,7 +97,7 @@ export function DropForm(props: {
       >
         {pending ? "Dropping…" : "Drop out"}
       </Button>
-      <ButtonLink href={`/p/${props.slug}`} kind="ghost" className="mt-2 w-full">
+      <ButtonLink href={props.practiceHref} kind="ghost" className="mt-2 w-full">
         Keep my spot
       </ButtonLink>
     </Card>

@@ -2,6 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { dropUrl } from "../drop-link";
 import { env } from "../env";
+import { signupUrl } from "../signup-link";
 import { db } from "../supabase";
 import { emailChannel } from "./email";
 import { render } from "./templates";
@@ -50,6 +51,7 @@ export async function processOutbox(limit = 100) {
           const ctx = {
             siteUrl: env.siteUrl,
             dropUrl: MEMBER_KINDS.has(row.kind) && row.member_id && row.event_id ? dropUrl(row.event_id, row.member_id) : undefined,
+            practiceUrl: practiceUrl(row.payload),
           };
           const message = render(row.kind, row.payload, ctx);
           await channel.send({ to: row.to_address, ...message });
@@ -78,4 +80,9 @@ export function flushOutboxSoon() {
       console.error("Outbox flush failed", err);
     }
   });
+}
+
+function practiceUrl(payload: Record<string, unknown>) {
+  const event = payload.event as { id?: string; slug?: string } | undefined;
+  return event?.id && event.slug ? signupUrl({ id: event.id, slug: event.slug }) : undefined;
 }

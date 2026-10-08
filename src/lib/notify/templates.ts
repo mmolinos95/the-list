@@ -12,6 +12,8 @@ export type EmailContext = {
   siteUrl: string;
   /** Personal drop-out link, for emails sent to a member. */
   dropUrl?: string;
+  /** The practice page with its sign-up key, for emails about a practice. */
+  practiceUrl?: string;
 };
 
 const C = {
@@ -161,9 +163,9 @@ const templates = {
         `<h1 style="margin:0 0 20px;font-family:${DISPLAY};font-weight:400;font-size:56px;line-height:1">${swatch}${label}</h1>` +
         p(`${esc(firstName(d.name))}, you're on <b>${esc(TEAM_LABEL[d.team])}</b> for ${esc(day(d.event))} ${esc(d.list)}. Bring a ${esc(TEAM_LABEL[d.team].toLowerCase())} shirt if you have one.`) +
         details(eventRows(d.event)) +
-        button(`${ctx.siteUrl}/p/${d.event.slug}`, "See all teams") +
+        (ctx.practiceUrl ? button(ctx.practiceUrl, "See all teams") : "") +
         dropBlock(ctx),
-      text: text(`You're on ${label} for ${day(d.event)}.`, "", ...eventRows(d.event).map(([k, v]) => `${k}: ${v}`), "", `All teams: ${ctx.siteUrl}/p/${d.event.slug}`),
+      text: text(`You're on ${label} for ${day(d.event)}.`, "", ...eventRows(d.event).map(([k, v]) => `${k}: ${v}`), "", ctx.practiceUrl && `All teams: ${ctx.practiceUrl}`),
     };
   },
 
@@ -174,9 +176,8 @@ const templates = {
         headline("Practice is off.") +
         p(`Sorry, ${esc(firstName(d.name))}. ${esc(day(d.event))} practice (${esc(dayDate(d.event.starts_at))}, ${esc(timeRange(d.event.starts_at, d.event.ends_at))}) is cancelled.`) +
         (d.reason ? details([["WHY", d.reason]]) : "") +
-        p("Watch the WhatsApp group for the next one.") +
-        button(ctx.siteUrl, "See upcoming practices", "outline"),
-      text: text(`${day(d.event)} practice is off.`, d.reason ? `Why: ${d.reason}` : undefined, "", `Upcoming practices: ${ctx.siteUrl}`),
+        p("Watch the WhatsApp group for the next one."),
+      text: text(`${day(d.event)} practice is off.`, d.reason ? `Why: ${d.reason}` : undefined, "", "Watch the WhatsApp group for the next one."),
     };
   },
 

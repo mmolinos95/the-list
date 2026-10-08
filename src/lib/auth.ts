@@ -1,5 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { cache } from "react";
 import { authClient, db } from "./supabase";
 import type { BoardMember } from "./types";
@@ -10,6 +11,9 @@ import type { BoardMember } from "./types";
 
 /** The board member behind this request, or null. Cached per request. */
 export const getBoard = cache(async (): Promise<BoardMember | null> => {
+  // Session checks compare token expiry to the clock, and board pages read the
+  // clock after this, so everything behind a login renders at request time.
+  await connection();
   const supabase = await authClient();
   const {
     data: { user },

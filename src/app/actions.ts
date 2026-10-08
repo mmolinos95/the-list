@@ -4,11 +4,12 @@ import type { CountryCode } from "libphonenumber-js";
 import { getMySpots, type MySpot } from "@/lib/data";
 import { dropToken, verifyDropToken } from "@/lib/drop-link";
 import { flushOutboxSoon } from "@/lib/notify/outbox";
+import { hasSignupAccess } from "@/lib/signup-link";
 import { db, errorCode } from "@/lib/supabase";
 import { emailSchema, nameSchema, normalizePhone } from "@/lib/validate";
 
-// Member actions. No login: identity is the email for sign-ups and the
-// signed personal link (token) for everything after that.
+// Member actions. No login: signing up takes the practice's sign-up link
+// (key) from WhatsApp, and everything after that the signed personal link (token).
 
 const FRIENDLY: Record<string, string> = {
   not_open: "Sign-ups aren't open yet. Hang tight.",
@@ -18,6 +19,7 @@ const FRIENDLY: Record<string, string> = {
   event_not_found: "We couldn't find that practice.",
   no_lists: "Pick at least one list.",
   bad_list: "Something's off with that list. Refresh the page and try again.",
+  no_access: "This sign-up link has expired. Open the latest one from the club WhatsApp.",
 };
 
 function friendly(code: string | null) {
@@ -28,6 +30,7 @@ function friendly(code: string | null) {
 
 export type SignUpInput = {
   eventId: string;
+  signupKey: string;
   listIds: string[];
   name: string;
   email: string;
@@ -47,6 +50,9 @@ export async function signUp(input: SignUpInput): Promise<SignUpResult> {
   const phone = normalizePhone(input.phone, (input.country || "US") as CountryCode);
   if (!phone) return { ok: false, error: "That phone number doesn't look right. Check the country code.", field: "phone" };
   if (input.listIds.length === 0) return { ok: false, error: FRIENDLY.no_lists };
+
+  const { data: event } = await db().from("events").select("id, ends_at").eq("id", input.eventId).maybeSingle();
+  if (!event || !hasSignupAccess(event, input.signupKey)) return { ok: false, error: FRIENDLY.no_access };
 
   const { data, error } = await db().rpc("sign_up", {
     p_event: input.eventId,

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { Lockup } from "@/components/brand";
 import { ButtonLink, Card } from "@/components/ui";
 import { getMySpots } from "@/lib/data";
 import { verifyDropToken } from "@/lib/drop-link";
+import { signupPath } from "@/lib/signup-link";
 import { stageOf } from "@/lib/stage";
 import { db } from "@/lib/supabase";
 import { clock, monthDay, timeRange, weekdayLong } from "@/lib/time";
@@ -21,9 +21,7 @@ export default function DropPage({ params }: PageProps<"/drop/[token]">) {
     <main className="flex-1">
       <header className="bg-columbia px-4 py-6">
         <div className="mx-auto max-w-xl">
-          <Link href="/" aria-label="All practices">
-            <Lockup size="sm" />
-          </Link>
+          <Lockup size="sm" />
         </div>
       </header>
       <div className="mx-auto max-w-xl px-4 py-6">
@@ -52,10 +50,7 @@ async function Drop({ params }: { params: Promise<{ token: string }> }) {
     return (
       <Card>
         <p className="font-display text-4xl">{stage === "cancelled" ? "Practice is off" : "This practice is over"}</p>
-        <p className="mt-2 text-muted">{when}. There&apos;s nothing to drop.</p>
-        <ButtonLink href="/" kind="outline" className="mt-5">
-          See upcoming practices
-        </ButtonLink>
+        <p className="mt-2 text-muted">{when}. There&apos;s nothing to drop. Watch the WhatsApp group for the next one.</p>
       </Card>
     );
   }
@@ -67,7 +62,7 @@ async function Drop({ params }: { params: Promise<{ token: string }> }) {
         <p className="mt-2 text-muted">
           You&apos;re not signed up for {weekdayLong(ev.starts_at)} practice ({when}) right now.
         </p>
-        <ButtonLink href={`/p/${ev.slug}`} kind="outline" className="mt-5">
+        <ButtonLink href={signupPath(ev)} kind="outline" className="mt-5">
           Go to the practice
         </ButtonLink>
       </Card>
@@ -80,7 +75,7 @@ async function Drop({ params }: { params: Promise<{ token: string }> }) {
       firstName={name?.split(" ")[0] ?? ""}
       title={`${weekdayLong(ev.starts_at)} practice`}
       when={when}
-      slug={ev.slug}
+      practiceHref={signupPath(ev)}
       locked={stage === "locked" || stage === "teams"}
       lockTime={clock(ev.locks_at)}
       spots={spots}
@@ -92,10 +87,7 @@ function Invalid() {
   return (
     <Card>
       <p className="font-display text-4xl">This link doesn&apos;t work</p>
-      <p className="mt-2 text-muted">It may be incomplete. Try the link from your latest email, or open the practice page.</p>
-      <ButtonLink href="/" kind="outline" className="mt-5">
-        See upcoming practices
-      </ButtonLink>
+      <p className="mt-2 text-muted">It may be incomplete. Try the link from your latest email.</p>
     </Card>
   );
 }

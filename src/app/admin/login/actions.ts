@@ -30,9 +30,13 @@ export async function sendLoginLink(_prev: LoginState, form: FormData): Promise<
   await supabase.from("board_members").update({ last_login_link_at: new Date().toISOString() }).eq("id", member.id);
 
   let link = await supabase.auth.admin.generateLink({ type: "magiclink", email });
-  if (link.error) {
-    // No auth account yet (first login): create one, then try again.
-    await supabase.auth.admin.createUser({ email, email_confirm: true });
+  const user = link.data?.user;
+  if (link.error || !user?.email_confirmed_at) {
+    // First login: generateLink makes an unconfirmed account and returns a
+    // signup token, which verifyOtp({ type: "magiclink" }) rejects. Confirm the
+    // account (board_members already vouches for the email), then make a real link.
+    if (user) await supabase.auth.admin.updateUserById(user.id, { email_confirm: true });
+    else await supabase.auth.admin.createUser({ email, email_confirm: true });
     link = await supabase.auth.admin.generateLink({ type: "magiclink", email });
   }
   if (link.error || !link.data.properties?.hashed_token) {
