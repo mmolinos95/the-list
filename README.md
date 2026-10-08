@@ -20,7 +20,8 @@ You need: a GitHub account with this repo, and the club Google account. Use the 
 2. **SQL Editor → New query**: paste and run, in order:
    1. `supabase/migrations/20261008000001_schema.sql`
    2. `supabase/migrations/20261008000002_functions.sql`
-   3. `supabase/seed.sql`, **after** changing the president's email (and the practice times and place, if you know them; they can also be fixed later in the app).
+   3. `supabase/migrations/20261008000003_list_times.sql`
+   4. `supabase/seed.sql`, **after** changing the president's email (and the practice times and place, if you know them; they can also be fixed later in the app).
 3. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up". (The app creates board logins itself; this stops strangers from making accounts.)
 4. **Project Settings → API Keys**: copy the **Project URL**, the **publishable** key and a **secret** key for the next step.
 
