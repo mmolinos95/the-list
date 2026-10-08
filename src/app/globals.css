@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* Brand tokens. Source: Figma "Brand Identity" (see PLAN.md, "Brand & design"). */
+@theme {
+  --color-columbia: #b9d9eb; /* club color: headers, logo, Light Blue team */
+  --color-columbia-50: #eef6fb;
+  --color-gold: #e3b43c; /* confirmed checks, highlights */
+  --color-core: #1d4f91; /* buttons and links only */
+  --color-core-dark: #163d70;
+  --color-kickoff: #d6453d; /* alerts only: locked, late drops, cancelled */
+  --color-ink: #111418; /* text, Black team */
+  --color-muted: #5b6470;
+  --color-line: #d8e6ef;
+  --color-page: #f3f7fa;
+
+  --font-display: var(--font-bebas), Impact, "Arial Narrow Bold", sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-page);
+  color: var(--color-ink);
+}
+
+/* Bebas Neue reads best with a little tracking. */
+.font-display {
+  letter-spacing: 0.01em;
+}
