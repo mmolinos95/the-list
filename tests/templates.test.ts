@@ -47,6 +47,18 @@ describe("email templates", () => {
     expect(m.html).toContain("?k=key");
   });
 
+  it("names the team in the subject", () => {
+    expect(render("team", payloads.team, ctx).subject).toBe("You're on LIGHT BLUE for Wednesday");
+    expect(render("team", { ...payloads.team, update: true }, ctx).subject).toBe("Team change: you're on LIGHT BLUE for Wednesday");
+  });
+
+  it("supports dark mode", () => {
+    const { html } = render("signup", payloads.signup, ctx);
+    expect(html).toContain('name="color-scheme" content="light dark"');
+    expect(html).toContain("prefers-color-scheme: dark");
+    expect(html).toContain("/brand/lockup-email@2x.png");
+  });
+
   it("renders the login email", () => {
     expect(loginEmail("https://x/confirm", "https://x").html).toContain("https://x/confirm");
   });

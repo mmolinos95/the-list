@@ -24,7 +24,29 @@ const C = {
   black: "#111418",
   muted: "#5B6470",
   line: "#D8E6EF",
+  page: "#F3F7FA",
+  box: "#EEF6FB",
 };
+
+// Dark mode. Header and footer are Core Blue in both modes, since mail apps that
+// recolor emails on their own (Outlook, Gmail) leave dark backgrounds alone and
+// turn light blue into grey. Apps that honor prefers-color-scheme get this
+// palette; Outlook.com marks what it recolors with data-ogsc/data-ogsb.
+const D = { page: "#0B1118", card: "#151D27", box: "#1C2632", line: "#2B3846", text: "#EEF2F6", muted: "#A3AFBC", label: "#B9D9EB" };
+const darkCss = (pre: string) => `
+${pre}.em-page{background-color:${D.page}!important}
+${pre}.em-card{background-color:${D.card}!important;color:${D.text}!important}
+${pre}.em-muted{color:${D.muted}!important}
+${pre}.em-label{color:${D.label}!important}
+${pre}.em-box{background-color:${D.box}!important;border-color:${D.line}!important}
+${pre}.em-outline{background-color:transparent!important;color:${D.label}!important;border-color:${D.label}!important}
+${pre}.em-swatch{border-color:${D.text}!important}`;
+const STYLE = `<style>
+:root{color-scheme:light dark;supported-color-schemes:light dark}
+@media (prefers-color-scheme: dark){${darkCss("")}}
+${darkCss("[data-ogsc] ")}
+${darkCss("[data-ogsb] ")}
+</style>`;
 const TEAM_HEX: Record<TeamColor, string> = { black: "#111418", white: "#FFFFFF", red: "#D6453D", light_blue: "#B9D9EB" };
 
 const DISPLAY = "'Bebas Neue', Impact, 'Arial Narrow Bold', 'Helvetica Neue', Arial, sans-serif";
@@ -37,19 +59,21 @@ const day = (e: EventJson) => weekdayLong(e.starts_at);
 // Building blocks -------------------------------------------------------------
 
 function layout(ctx: EmailContext, body: string) {
-  return `<!doctype html><html><body style="margin:0;background:#F3F7FA;font-family:${BODY};color:${C.black}">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F7FA;padding:24px 0"><tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:12px;overflow:hidden">
-<tr><td style="background:${C.blue};padding:24px 40px">
+  return `<!doctype html><html><head><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">${STYLE}</head>
+<body class="em-page" style="margin:0;background:${C.page};font-family:${BODY};color:${C.black}">
+<table role="presentation" class="em-page" width="100%" cellpadding="0" cellspacing="0" style="background:${C.page};padding:24px 0"><tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:12px;overflow:hidden">
+<tr><td style="background:${C.core};padding:24px 40px">
   <a href="${ctx.siteUrl}" style="text-decoration:none;color:#fff">
-    <img src="${ctx.siteUrl}/brand/lockup-on-blue@2x.png" width="156" height="56" alt="CBS FC · The List" style="display:block;border:0">
+    <img src="${ctx.siteUrl}/brand/lockup-email@2x.png" width="156" height="56" alt="CBS FC · The List" style="display:block;border:0;color:#fff">
   </a>
 </td></tr>
-<tr><td style="padding:40px">${body}</td></tr>
-<tr><td style="background:${C.blue};padding:18px 40px">
+<tr><td style="height:4px;line-height:4px;font-size:0;background:${C.gold}">&nbsp;</td></tr>
+<tr><td class="em-card" style="background:#fff;color:${C.black};padding:40px">${body}</td></tr>
+<tr><td style="background:${C.core};padding:18px 40px">
   <table role="presentation" width="100%"><tr>
-    <td style="font-family:${DISPLAY};font-size:22px;letter-spacing:.5px">YOUR SPOT, SORTED.</td>
-    <td align="right" style="font-size:11px;font-weight:700;letter-spacing:1.5px">CBS FC · NEW YORK</td>
+    <td style="font-family:${DISPLAY};font-size:22px;letter-spacing:.5px;color:#fff">YOUR SPOT, SORTED.</td>
+    <td align="right" style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:${C.blue}">CBS FC · NEW YORK</td>
   </tr></table>
 </td></tr>
 </table></td></tr></table></body></html>`;
@@ -57,17 +81,20 @@ function layout(ctx: EmailContext, body: string) {
 
 const headline = (text: string) =>
   `<h1 style="margin:0 0 20px;font-family:${DISPLAY};font-weight:400;font-size:52px;line-height:1;letter-spacing:.5px;text-transform:uppercase">${esc(text)}</h1>`;
-const p = (html: string, style = "") => `<p style="margin:0 0 20px;font-size:16px;line-height:1.55;${style}">${html}</p>`;
-const small = (html: string) => p(html, `font-size:13px;color:${C.muted}`);
+const p = (html: string, style = "", cls = "") =>
+  `<p${cls ? ` class="${cls}"` : ""} style="margin:0 0 20px;font-size:16px;line-height:1.55;${style}">${html}</p>`;
+const small = (html: string) => p(html, `font-size:13px;color:${C.muted}`, "em-muted");
+const label = (text: string, color = C.core) =>
+  `<p${color === C.core ? ` class="em-label"` : ""} style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:1.5px;color:${color}">${text}</p>`;
 
 function details(rows: [string, string][]) {
   const tr = rows
     .map(
       ([k, v]) =>
-        `<tr><td style="padding:5px 16px 5px 0;font-size:11px;font-weight:700;letter-spacing:1.5px;color:${C.core};vertical-align:top;white-space:nowrap">${esc(k)}</td><td style="padding:4px 0;font-size:15px">${esc(v)}</td></tr>`,
+        `<tr><td class="em-label" style="padding:5px 16px 5px 0;font-size:11px;font-weight:700;letter-spacing:1.5px;color:${C.core};vertical-align:top;white-space:nowrap">${esc(k)}</td><td style="padding:4px 0;font-size:15px">${esc(v)}</td></tr>`,
     )
     .join("");
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border:1px solid ${C.line};border-radius:10px;background:#F7FBFD;padding:16px 20px;margin:0 0 20px">${tr}</table>`;
+  return `<table role="presentation" class="em-box" cellpadding="0" cellspacing="0" style="width:100%;border:1px solid ${C.line};border-radius:10px;background:${C.box};padding:16px 20px;margin:0 0 20px">${tr}</table>`;
 }
 
 function button(href: string, label: string, kind: "solid" | "outline" = "solid") {
@@ -75,7 +102,7 @@ function button(href: string, label: string, kind: "solid" | "outline" = "solid"
     kind === "solid"
       ? `background:${C.core};color:#fff;border:2px solid ${C.core}`
       : `background:#fff;color:${C.core};border:2px solid ${C.core}`;
-  return `<p style="margin:0 0 16px"><a href="${href}" style="${style};display:inline-block;padding:12px 22px;border-radius:8px;font-family:${DISPLAY};font-size:20px;letter-spacing:.5px;text-decoration:none">${esc(label)}</a></p>`;
+  return `<p style="margin:0 0 16px"><a href="${href}"${kind === "outline" ? ` class="em-outline"` : ""} style="${style};display:inline-block;padding:12px 22px;border-radius:8px;font-family:${DISPLAY};font-size:20px;letter-spacing:.5px;text-decoration:none">${esc(label)}</a></p>`;
 }
 
 function eventRows(e: EventJson): [string, string][] {
@@ -154,18 +181,18 @@ const templates = {
   },
 
   team(d: { name: string; event: EventJson; team: TeamColor; list: string; update: boolean }, ctx: EmailContext) {
-    const label = TEAM_LABEL[d.team].toUpperCase();
-    const swatch = `<span style="display:inline-block;width:28px;height:28px;border-radius:50%;background:${TEAM_HEX[d.team]};border:2px solid ${C.black};vertical-align:middle;margin-right:10px"></span>`;
+    const teamName = TEAM_LABEL[d.team].toUpperCase();
+    const swatch = `<span class="em-swatch" style="display:inline-block;width:28px;height:28px;border-radius:50%;background:${TEAM_HEX[d.team]};border:2px solid ${C.black};vertical-align:middle;margin-right:10px"></span>`;
     return {
-      subject: d.update ? `Team change: you're on ${label} for ${day(d.event)}` : `You're on ${label} for ${day(d.event)}`,
+      subject: d.update ? `Team change: you're on ${teamName} for ${day(d.event)}` : `You're on ${teamName} for ${day(d.event)}`,
       html:
-        `<p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:1.5px;color:${C.core}">${d.update ? "TEAM CHANGE" : "YOUR TEAM"}</p>` +
-        `<h1 style="margin:0 0 20px;font-family:${DISPLAY};font-weight:400;font-size:56px;line-height:1">${swatch}${label}</h1>` +
+        label(d.update ? "TEAM CHANGE" : "YOUR TEAM") +
+        `<h1 style="margin:0 0 20px;font-family:${DISPLAY};font-weight:400;font-size:56px;line-height:1">${swatch}${teamName}</h1>` +
         p(`${esc(firstName(d.name))}, you're on <b>${esc(TEAM_LABEL[d.team])}</b> for ${esc(day(d.event))} ${esc(d.list)}. Bring a ${esc(TEAM_LABEL[d.team].toLowerCase())} shirt if you have one.`) +
         details(eventRows(d.event)) +
         (ctx.practiceUrl ? button(ctx.practiceUrl, "See all teams") : "") +
         dropBlock(ctx),
-      text: text(`You're on ${label} for ${day(d.event)}.`, "", ...eventRows(d.event).map(([k, v]) => `${k}: ${v}`), "", ctx.practiceUrl && `All teams: ${ctx.practiceUrl}`),
+      text: text(`You're on ${teamName} for ${day(d.event)}.`, "", ...eventRows(d.event).map(([k, v]) => `${k}: ${v}`), "", ctx.practiceUrl && `All teams: ${ctx.practiceUrl}`),
     };
   },
 
@@ -201,10 +228,10 @@ const templates = {
     return {
       subject: d.subject,
       html:
-        `<p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:1.5px;color:${C.core}">${esc(day(d.event).toUpperCase())} PRACTICE · FROM THE BOARD</p>` +
+        label(`${esc(day(d.event).toUpperCase())} PRACTICE · FROM THE BOARD`) +
         headline(d.subject) +
         paras.join("") +
-        (d.from_name ? p(`— ${esc(d.from_name)}`, `color:${C.muted}`) : "") +
+        (d.from_name ? p(`— ${esc(d.from_name)}`, `color:${C.muted}`, "em-muted") : "") +
         details(eventRows(d.event)) +
         dropBlock(ctx),
       text: text(d.subject, "", d.body, d.from_name ? `— ${d.from_name}` : undefined, "", ctx.dropUrl && `Can't make it? ${ctx.dropUrl}`),
@@ -216,7 +243,7 @@ const templates = {
     return {
       subject: `Late drop: ${d.member_name} left ${day(d.event)} ${d.list} (${when} before kickoff)`,
       html:
-        `<p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:1.5px;color:${C.red}">LATE DROP</p>` +
+        label("LATE DROP", C.red) +
         headline(`${d.member_name} dropped out.`) +
         p(`They left the ${esc(d.list)} list ${esc(when)} before kickoff, after the list locked, so nobody was moved up automatically.`) +
         details(eventRows(d.event)) +
