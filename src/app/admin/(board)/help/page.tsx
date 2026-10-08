@@ -73,7 +73,7 @@ export default function HelpPage() {
         <ul className="list-disc space-y-1 pl-5">
           <li>Every email comes from the club Gmail. Members get a personal drop-out link that only works for them.</li>
           <li>Buttons in board emails (promote, cancel) work without logging in, only for you, and always ask once more before doing anything.</li>
-          <li>On your phone, add The List to your home screen (Share → Add to Home Screen on iPhone). Log in there with the code from the login email.</li>
+          <li>On your phone, add The List to your home screen (on iPhone: Safari’s ••• → Share → View More → Add to Home Screen). Log in there with the code from the login email.</li>
           <li>Members who haven&apos;t signed up in 12 months are deleted automatically, with their history.</li>
           <li>If emails fail (Gmail limits are about 500 a day), the home screen shows a <b>Retry</b> button.</li>
           <li>The technical setup is in the README on GitHub.</li>

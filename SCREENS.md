@@ -84,7 +84,7 @@ The body changes with the practice's stage:
 - Always replies "If you're on the board, a login email is on its way.", so it doesn't reveal who has access.
 - The email has a link **and a code** (8 digits, shown "1234 5678"). After sending, the page shows "Or type the code from the email": for the home-screen app (on iPhone it doesn't share Safari's login) or when the email is on another device. Five wrong codes and that code stops working until a new email is sent.
 - No passwords. Sessions last until you log out.
-- **Home-screen app:** the board installs like an app (web app manifest scoped to `/admin`, opens on Practices). The home screen shows a one-time tip on phones: an **Install** button on Android, "Share → Add to Home Screen" on iPhone.
+- **Home-screen app:** the board installs like an app (web app manifest scoped to `/admin`, opens on Practices). The home screen shows a one-time tip on phones: an **Install** button on Android, "••• → Share → View More → Add to Home Screen" on iPhone (iOS 26 moved Share into Safari's ••• menu).
 
 ### B1. Practices home (`/admin`): a to-do list, not a dashboard
 - Bottom nav (sidebar on desktop): **Practices · Schedule · Late drops · Board**

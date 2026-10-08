@@ -49,8 +49,8 @@ export function InstallHint() {
       <p className="mt-1">
         {mode === "ios" ? (
           <>
-            Tap <b>Share</b> <span aria-hidden="true">(the square with the arrow)</span>, then <b>Add to Home Screen</b>. You&apos;ll log in once in the app with the code from
-            the login email.
+            In Safari, tap <b>•••</b> (or the Share icon), then <b>Share</b> → <b>View More</b> → <b>Add to Home Screen</b>. You&apos;ll log in once in the app with the
+            code from the login email.
           </>
         ) : (
           "It opens straight to your practices, like an app."

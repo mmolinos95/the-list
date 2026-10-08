@@ -61,7 +61,7 @@ export function CancelForm(props: { token: string; title: string; when: string; 
   const n = props.emailCount;
   return (
     <Card>
-      <p className="font-display text-4xl leading-none">Cancel {props.title.toLowerCase()}?</p>
+      <p className="font-display text-4xl leading-none">Cancel {props.title}?</p>
       <p className="mt-2 text-sm text-muted">{props.when}</p>
       <div className="mt-5">
         <CancelReason value={reason} onChange={setReason} />

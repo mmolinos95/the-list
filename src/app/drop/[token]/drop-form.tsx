@@ -27,7 +27,7 @@ export function DropForm(props: {
       <Card>
         <p className="font-display text-4xl leading-none">You&apos;re off the list</p>
         <p className="mt-3">
-          You dropped out of {done.join(" and ")} for {props.title.toLowerCase()}. Thanks for freeing up the spot{props.firstName ? `, ${props.firstName}` : ""}.
+          You dropped out of {done.join(" and ")} for {props.title}. Thanks for freeing up the spot{props.firstName ? `, ${props.firstName}` : ""}.
         </p>
         <p className="mt-2 text-sm text-muted">Changed your mind? Sign up again. You&apos;ll join the end of the list.</p>
         <ButtonLink href={props.practiceHref} kind="outline" className="mt-5">
@@ -41,7 +41,7 @@ export function DropForm(props: {
 
   return (
     <Card>
-      <p className="font-display text-4xl leading-none">Drop out of {props.title.toLowerCase()}?</p>
+      <p className="font-display text-4xl leading-none">Drop out of {props.title}?</p>
       <p className="mt-2 text-muted">{props.when}</p>
 
       <ul className="mt-5 space-y-2">
