@@ -1,6 +1,6 @@
 # CBS FC · The List: Data Model
 
-_Last updated 2026-10-08. Postgres on Supabase. See [PLAN.md](PLAN.md) for requirements and [SCREENS.md](SCREENS.md) for screens._
+_Last updated 2026-10-08, to match the built schema in `supabase/migrations`. Postgres on Supabase. See [PLAN.md](PLAN.md) for requirements and [SCREENS.md](SCREENS.md) for screens._
 
 ## Overview
 
@@ -11,8 +11,6 @@ erDiagram
   events ||--o{ event_lists : "has"
   event_lists ||--o{ signups : "holds"
   members ||--o{ signups : "makes"
-  members ||--o{ drop_tokens : "owns"
-  events ||--o{ drop_tokens : "for"
   board_members ||--o{ signups : "added / promoted / removed"
   emails }o--|| events : "about"
 ```
@@ -23,7 +21,6 @@ erDiagram
 | `events` + `event_lists` | One dated practice and its lists (copied from the template, then editable) | Practice |
 | `members` | A person, matched by email | — |
 | `signups` | One person's spot on one list: main or waitlist, plus team | The list |
-| `drop_tokens` | Secret behind each personal drop-out link | — |
 | `board_members` | Who can log in to `/admin`, and their role | Board |
 | `emails` | Outbox + log of every notification | — |
 
@@ -37,11 +34,12 @@ Everything is generic "events" with `type = 'practice'` for now, so games and so
 | Column | Type | Notes |
 |---|---|---|
 | id | uuid pk | |
-| email | citext unique not null | Login is matched on this |
+| email | text unique not null | Lowercase (checked). Login is matched on this |
 | user_id | uuid unique null → `auth.users` | Filled on first login |
 | name | text | |
 | role | enum `president` \| `board` | |
 | invited_by | uuid null → board_members | |
+| last_login_link_at | timestamptz null | Throttles login emails to one a minute |
 | created_at | timestamptz | |
 
 - Removing someone deletes the row. History columns elsewhere use `on delete set null`.
@@ -73,12 +71,12 @@ Everything is generic "events" with `type = 'practice'` for now, so games and so
 | slug | text unique | `2026-10-08-wed`, used in URLs |
 | starts_at, ends_at | timestamptz | Stored in UTC |
 | opens_at | timestamptz **null** | Null = manual and not opened yet. "Open sign-ups" sets it to `now()` |
-| locks_at | timestamptz, **generated** = `starts_at − 2h` | |
+| locks_at | timestamptz = `starts_at − 2h` | Kept by a trigger on insert and on every change to `starts_at` |
 | edited_at | timestamptz null | Set when the board edits this practice. Template changes then skip it |
 | cancelled_at, cancel_reason, cancelled_by | | |
 
 - `unique (template_id, starts_at)` lets the daily cron run any number of times without creating duplicates.
-- **Saving a template** updates future events from it that haven't opened and haven't been edited individually.
+- **Saving a template** (`apply_template`) rebuilds its future events that haven't opened, haven't been edited, and have no sign-ups. Pausing does the same, so paused weeks disappear from the home page.
 
 ### `event_lists`
 `id`, `event_id`, `name`, `cap`, `makes_teams`, `position`, `teams_sent_at` (null until **Send teams**).
@@ -87,7 +85,7 @@ Everything is generic "events" with `type = 'practice'` for now, so games and so
 | Column | Type | Notes |
 |---|---|---|
 | id | uuid pk | |
-| email | citext **unique, null** | Null only for walk-ins added without one |
+| email | text **unique, null**, lowercase | Null only for walk-ins added without one |
 | name | text | **Latest wins**: every sign-up updates it |
 | phone | text null | E.164 (`+12125550148`), checked with a constraint. Latest wins |
 | last_signup_at | timestamptz | Drives the 12-month cleanup |
@@ -115,26 +113,29 @@ Everything is generic "events" with `type = 'practice'` for now, so games and so
 - **Waitlist order:** `created_at`. The first row is tagged "Next up".
 - **Late drops page:** `where dropped_late`. No separate drops table is needed.
 
-### `drop_tokens`
-`id`, `event_id`, `member_id`, `token_hash` (sha-256), `created_at`.
-- A new random token is created for each sign-up. The raw token goes only in the email and the member's browser, and the database stores only its hash.
-- **Any** valid token for an event + member opens the drop page for **all** their lists in that practice. If someone signs up for Skills and later for Games, both email links keep working.
+### Personal drop-out links (no table)
+A link is `/drop/<event_id>.<member_id>.<signature>`, where the signature is an HMAC of the two ids with `DROP_LINK_SECRET` (see `src/lib/drop-link.ts`).
+- Nothing is stored: the server can recompute and check the signature. The same person always gets the same link for a practice, so **every** email they get for it keeps working, and it opens the drop page for **all** their lists in that practice.
+- The link is only handed to the browser when the sign-up created a new spot, so typing someone else's email can't be used to get their link.
+- Rotating `DROP_LINK_SECRET` invalidates every link already emailed.
 
 ### `emails` (outbox + log)
 | Column | Type | Notes |
 |---|---|---|
 | id | uuid pk | |
 | channel | enum `email` | WhatsApp/SMS plug in here later |
-| kind | enum | `signup`, `promoted`, `team`, `cancelled`, `changed`, `board_message`, `late_drop` |
+| kind | enum | `signup`, `promoted`, `team`, `cancelled`, `changed`, `board_message`, `late_drop`, `board_invite` |
 | to_address | text | |
 | member_id, event_id | uuid null | |
 | payload | jsonb | Everything the template needs to render |
 | status | enum `pending` \| `sent` \| `failed` | |
-| attempts, last_error, created_at, sent_at | | |
+| attempts, last_error, claimed_at, created_at, sent_at | | |
 
 - Rows are written **in the same transaction** as the action that triggers them, so an email is never lost and never sent for something that rolled back.
 - Right after the action, the server sends pending rows in the background using Next.js `after()`, so the member doesn't wait. A daily cron and a **Retry** button in admin pick up failures.
-- A guard counts `sent` rows in the last 24 h against Gmail's ~500/day limit.
+- Senders take rows with `claim_emails(n)` (`FOR UPDATE SKIP LOCKED`), so two senders never send the same email. A claim expires after 5 minutes, and a failed email is retried up to 5 times.
+- A guard counts `sent` rows in the last 24 h against Gmail's ~500/day limit (it stops at 450).
+- Login links are **not** in this table: they are secrets, so they are sent directly and never stored.
 
 ---
 
@@ -144,13 +145,18 @@ These are Postgres functions (called through Supabase `rpc`), so the rules hold 
 
 | Function | What it does |
 |---|---|
-| `sign_up(event, lists[], name, email, phone)` | Checks the practice is open, not locked or cancelled. Upserts the member (latest wins). Per list: skips if already on it, otherwise `main` if the count is under the cap, else `waitlist`. Creates a drop token and queues **one** combined email. |
-| `drop(token, lists[])` | Marks spots `dropped`. **Before the lock**, if a main spot opened, promotes the oldest waitlister and queues their email. **After the lock**, sets `dropped_late` and queues a heads-up to every board member. |
-| `remove_signup(id, by)` | Same as drop (promotes before the lock) but status `removed`, with no late flag. |
-| `add_signup(list, name, email?, phone?, spot, by)` | Walk-ins. The board picks `main` (can exceed the cap) or `waitlist` (default). |
-| `promote(id, by)` | After the lock only: moves **any** waitlister to main. Before the lock it's automatic. |
-| `set_cap(list, cap)` | Raising it before the lock promotes from the waitlist. Lowering it never removes anyone. |
-| `open_event`, `cancel_event`, `send_teams`, `send_team_updates` | Set the timestamp and queue the emails. |
+| `sign_up(event, lists[], name, email, phone)` | Checks the practice is open, not locked or cancelled. Upserts the member (latest wins). Per list: skips if already on it, otherwise `main` if the count is under the cap, else `waitlist`. Queues **one** combined email. |
+| `drop_signups(event, member, lists[])` | Marks spots `dropped`. **Before the lock**, if a main spot opened, promotes the oldest waitlister and queues their email. **After the lock**, sets `dropped_late` and queues a heads-up to every board member. |
+| `remove_signup(id, by)` | Same as a drop (promotes before the lock) but status `removed`, with no late flag. |
+| `add_signup(list, name, email?, phone?, spot, by)` | Walk-ins. The board picks `main` (can exceed the cap) or `waitlist`. |
+| `promote_signup(id, by)` | After the lock only: moves **any** waitlister to main. Before the lock it's automatic. |
+| `set_list_cap(list, cap)` | Raising it before the lock promotes from the waitlist. Lowering it never removes anyone. |
+| `open_event`, `cancel_event`, `edit_event`, `message_event` | Set the timestamps and queue the emails. |
+| `shuffle_teams`, `set_team`, `send_teams` | Random even split; one move; email everyone whose `team ≠ team_sent` (first send = everyone, later = **Send updates**). |
+| `create_upcoming_events(days)`, `apply_template`, `delete_template` | Build practices from the weekly schedule. Safe to run any number of times. |
+| `claim_emails(n)`, `cleanup_inactive_members()` | Outbox and housekeeping, used by the daily job. |
+
+Execute rights on all of these are revoked from the public roles: only the server (service role) can call them.
 
 ### Stage of a practice (computed, never stored)
 Checked in order, with `now()`:
@@ -165,15 +171,24 @@ Checked in order, with `now()`:
 
 ## Access & privacy
 
-- **Row Level Security on every table.** The public (anonymous) role can't read or write any table directly.
-- Member pages run on the server: Next.js server actions call the functions above with the service key. The public list returns **names only**, and emails and phones never leave the server.
-- Board pages use the logged-in session. Policies use `is_board()` and `is_president()` helpers that look up `board_members` by `auth.uid()`:
-  - Board: read everything, run the practice functions.
-  - President only: write `templates`, `template_lists`, `board_members`.
-- The browser's "remember me" stores name, email, phone, and the raw drop tokens in `localStorage`. That's enough to show "You're in" and the drop button, and nothing anyone else can use.
+- **Row Level Security is on for every table, with no policies.** The public and logged-in Supabase roles can't read or write anything directly, even with the publishable key.
+- All data access goes through the Next.js server with the secret key (`db()` in `src/lib/supabase.ts`). Each server action checks who is asking first:
+  - Members: the email for sign-ups, the signed drop-out link for everything after.
+  - Board: `requireBoard()` / `boardOnly()` / `presidentOnly()` in `src/lib/auth.ts` match the Supabase Auth session's email to `board_members` (and fill in `user_id` on first login). Removing a row locks that person out on their next request.
+- The public list returns **names only**; emails and phones never leave the server except on board pages.
+- The browser's "remember me" stores name, email, phone, and the personal links in `localStorage`. That's enough to show "You're in" and the drop button, and nothing anyone else can use.
 
-## Daily cron (one Vercel cron job, ~3 AM New York)
+## Board login
 
+1. `/admin/login`: if the email is in `board_members` (and no link went out in the last 60 s), the server makes a magic link with `auth.admin.generateLink` (creating the auth user on first login) and sends it from the club Gmail. The page always gives the same answer.
+2. The link opens `/admin/auth/confirm`, which logs in only when the person **presses the button** (`verifyOtp`), because email scanners open links automatically.
+3. `src/proxy.ts` refreshes the session cookie on `/admin` pages.
+
+## Daily job (Vercel cron, 10:00 UTC = 6 AM New York in summer, 5 AM in winter)
+
+`GET /api/cron` with `Authorization: Bearer $CRON_SECRET`:
 1. **Create events** for the next 14 days from unpaused templates. Weekday + local time are converted to UTC with `America/New_York`, so daylight saving is handled.
-2. **Retry** failed emails.
-3. **Clean up members** with `last_signup_at` older than 12 months and no upcoming sign-ups. Their sign-ups and late-drop history are deleted with them.
+2. **Send** any emails still pending, and retry failed ones (up to 5 tries; after that the board sees a **Retry** button).
+3. **Clean up members** with `last_signup_at` older than 12 months and no upcoming sign-ups. Their sign-ups and late-drop history are deleted with them. Email logs older than 90 days go too.
+
+Running every day also counts as activity, so the free Supabase project doesn't pause.
