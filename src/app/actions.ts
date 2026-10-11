@@ -51,7 +51,7 @@ export async function signUp(input: SignUpInput): Promise<SignUpResult> {
   if (!phone) return { ok: false, error: "That phone number doesn't look right. Check the country code.", field: "phone" };
   if (input.listIds.length === 0) return { ok: false, error: FRIENDLY.no_lists };
 
-  const { data: event } = await db().from("events").select("id, ends_at").eq("id", input.eventId).maybeSingle();
+  const { data: event } = await db().from("events").select("slug, ends_at").eq("id", input.eventId).maybeSingle();
   if (!event || !hasSignupAccess(event, input.signupKey)) return { ok: false, error: FRIENDLY.no_access };
 
   const { data, error } = await db().rpc("sign_up", {

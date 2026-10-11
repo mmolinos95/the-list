@@ -5,7 +5,7 @@ import { AutoRefresh, RefreshAt } from "@/components/live";
 import { NoAccess } from "@/components/no-access";
 import { Chip } from "@/components/ui";
 import { getPractice } from "@/lib/data";
-import { hasSignupAccess } from "@/lib/signup-link";
+import { signupAccess } from "@/lib/signup-link";
 import { clock, monthDay, timeRange, weekdayLong } from "@/lib/time";
 import { PracticeBody } from "./practice-body";
 
@@ -25,7 +25,9 @@ export default function PracticePage({ params, searchParams }: PageProps<"/p/[sl
 async function Practice({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const [{ slug }, { k }] = await Promise.all([params, searchParams]);
   const practice = await getPractice(slug);
-  if (!practice || !hasSignupAccess(practice.event, k)) return <NoAccess expired={!!practice && !!k} />;
+  const access = practice ? signupAccess(practice.event, k) : "invalid";
+  // "Expired" only for the real key of a finished practice, so guessing can't tell which practices exist.
+  if (!practice || access !== "ok") return <NoAccess expired={access === "expired"} />;
   const { event, stage } = practice;
 
   const lockChip =

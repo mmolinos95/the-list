@@ -116,9 +116,10 @@ Everything is generic "events" with `type = 'practice'` for now, so games and so
 - **Late drops page:** `where dropped_late`. No separate drops table is needed.
 
 ### Sign-up links (no table)
-Each practice has its own link, `/p/<slug>?k=<key>`, where the key is an HMAC of the event id with `DROP_LINK_SECRET` (see `src/lib/signup-link.ts`).
+Each practice has its own link, `/p/<slug>?k=<key>`, where the key is an HMAC of the slug with `DROP_LINK_SECRET` (see `src/lib/signup-link.ts`). The slug, not the id, because saving the weekly schedule rebuilds untouched practices with new ids but the same slug, and a link already posted must keep working.
 - The board copies it (or a ready-made WhatsApp post) from the practice page and posts it in the group. The home page and a practice page without a valid key only say "Get the link in WhatsApp", so people outside the group can't see or join practices.
 - The key stops working when the practice ends, so old links don't let anyone into later practices.
+- A wrong key gets the same "Get the link in WhatsApp" page as no key; only the real key of a finished practice says "expired", so guessing reveals nothing.
 - Emails that point at the practice page ("See all teams") carry the key, so people who signed up can always get back.
 - Rotating `DROP_LINK_SECRET` also invalidates every sign-up link already posted.
 

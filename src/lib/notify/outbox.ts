@@ -88,6 +88,6 @@ export function flushOutboxSoon() {
 }
 
 function practiceUrl(payload: Record<string, unknown>) {
-  const event = payload.event as { id?: string; slug?: string } | undefined;
-  return event?.id && event.slug ? signupUrl({ id: event.id, slug: event.slug }) : undefined;
+  const event = payload.event as { slug?: string } | undefined;
+  return event?.slug ? signupUrl({ slug: event.slug }) : undefined;
 }
