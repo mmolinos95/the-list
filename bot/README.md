@@ -18,7 +18,6 @@ Practices can be named loosely: `thu`, `thursday`, `next`, `today`, `tomorrow`, 
 | `signup` | Member | `!list in thu [list]` | Signs you up (asks which list if there are several; `both` works) |
 | `signup` | Member | `!list out thu [list]` | Drops you (asks first if it would be a late drop) |
 | `board` | Board | `!list open thu` | Opens sign-ups now (the app's **Open sign-ups** button) |
-| `board` | Board | `!list lock thu` | Says when the list locks (there's no early lock; see BRIEF.md) |
 | `board` | Board | `!list cancel thu [reason]` | Asks to confirm, then `!list cancel thu yes` cancels and emails everyone |
 | `board` | Board | `!list add thu Name [list] [waitlist]` | Adds a walk-in |
 | `board` | Board | `!list teams thu` | Shuffles teams and shows them. Send them from the app |

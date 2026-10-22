@@ -63,7 +63,7 @@ Practices are picked with loose input: `thu`, `thursday`, `10/23`, `next`. Times
 | 2 | Board | `!list post thu` | Posts the same text as **Copy WhatsApp post** (`src/lib/share.ts`), with the signed link (`src/lib/signup-link.ts`, uses `DROP_LINK_SECRET`) |
 | 3 | Member | `!list in thu [list]` | `sign_up(event, lists, name, email, phone)`. If the practice has more than one list and none was named, ask which. Reply with main/waitlist result |
 | 3 | Member | `!list out thu [list]` | `drop_signups(event, member, lists)` |
-| 4 | Board | `!list lock thu` / `!list open thu` | The same as the app's buttons (check `src/app/admin/actions.ts` for which functions they call) |
+| 4 | Board | `!list open thu` | `open_event`, the same as the app's **Open sign-ups** button. There is no lock command: a list locks on its own 2 hours before its first list starts |
 | 4 | Board | `!list cancel thu [reason]` | `cancel_event(event, reason, by)`. Ask to confirm first (`!list cancel thu yes`) |
 | 4 | Board | `!list add thu Name [list] [waitlist]` | `add_signup(list, name, null, null, spot, by)` |
 | 4 | Board | `!list teams thu` | `shuffle_teams`, then show the teams |
@@ -113,13 +113,9 @@ Build phases 1 → 5 in order, committing after each with its tests passing. Pus
 
 _(Add anything here that needs Martin, instead of guessing.)_
 
-### 1. `!list lock` has nothing to call (phase 4)
+### 1. `!list lock` — DECIDED: removed
 
-The app has no lock button: `src/app/admin/actions.ts` only has **Open sign-ups** (`open_event`). A list locks on its own 2 hours before its first list starts (`locks_at`, kept by the `events_locks_at` trigger), and there is no database function to lock earlier. Locking early would need a migration (e.g. a `lock_event` function, plus letting `locks_at` differ from `starts_at − 2h`), which the hard rules rule out.
-
-**What the bot does now:** `!list lock thu` (board only) replies with when the list locks on its own. `!list open thu` calls `open_event`, like the app's button.
-
-**Decide:** keep that, drop the command, or add an early-lock function to the app (upstream) first.
+The app has no lock button and no function to lock early (a list locks on its own 2 hours before its first list starts). **Martin:** remove `!list lock` completely; keep `!list open`. Done: no command, help text, Gemini tool or tests for it; `!list lock thu` is now just unrecognized text.
 
 ### 2. Baileys version: 7.0.0-rc14 (a release candidate)
 

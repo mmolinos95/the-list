@@ -28,7 +28,7 @@ const one = async <T>(sql: string, params: unknown[]) => (await db.query<T>(sql,
 describe("board commands (phase 4)", () => {
   it("are for the board only", async () => {
     const ev = await practice(db);
-    for (const cmd of ["open", "lock", "cancel", "teams"]) expect(await run(`${cmd} ${ev.slug}`, "ana@example.com")).toBe("Only the board can do that.");
+    for (const cmd of ["open", "cancel", "teams"]) expect(await run(`${cmd} ${ev.slug}`, "ana@example.com")).toBe("Only the board can do that.");
     expect(await run(`add ${ev.slug} Joe Walkin`, "ana@example.com")).toBe("Only the board can do that.");
   });
 
@@ -37,13 +37,6 @@ describe("board commands (phase 4)", () => {
     expect(await run(`open ${ev.slug}`)).toMatch(/Sign-ups for .* are open\. Post the link with `!list post/);
     expect(await one<{ open: boolean }>(`select opens_at <= now() as open from events where id = $1`, [ev.id])).toEqual({ open: true });
     expect(await run(`open ${ev.slug}`)).toMatch(/already open/);
-  });
-
-  it("!list lock explains that lists lock on their own", async () => {
-    const ev = await practice(db, { startsIn: "4 days" });
-    expect(await run(`lock ${ev.slug}`)).toMatch(/no early lock yet: .* locks on its own .*2 hours before/);
-    const locked = await practice(db, { startsIn: "1 hour" });
-    expect(await run(`lock ${locked.slug}`)).toMatch(/already locked/);
   });
 
   it("!list cancel asks first, then cancels with the reason and emails everyone", async () => {

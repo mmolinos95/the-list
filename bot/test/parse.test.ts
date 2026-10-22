@@ -41,7 +41,6 @@ describe("parseCommand", () => {
     expect(parseCommand("add thu Jane Doe games waitlist")).toEqual({ kind: "add", practice: "thu", rest: "Jane Doe games waitlist" });
     expect(parseCommand("post 10/23")).toEqual({ kind: "post", practice: "10/23" });
     expect(parseCommand("teams thu")).toEqual({ kind: "teams", practice: "thu" });
-    expect(parseCommand("lock thu")).toEqual({ kind: "lock", practice: "thu" });
     expect(parseCommand("open thu")).toEqual({ kind: "open", practice: "thu" });
   });
 
@@ -54,5 +53,7 @@ describe("parseCommand", () => {
     expect(parseCommand("out of curiosity, who's coming")).toEqual({ kind: "free", text: "out of curiosity, who's coming" });
     expect(parseCommand("me and my friend want in")).toEqual({ kind: "free", text: "me and my friend want in" });
     expect(parseCommand("post something cool")).toEqual({ kind: "free", text: "post something cool" });
+    // There is no lock command: the list locks on its own.
+    expect(parseCommand("lock thu")).toEqual({ kind: "free", text: "lock thu" });
   });
 });

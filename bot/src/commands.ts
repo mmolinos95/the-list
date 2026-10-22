@@ -1,4 +1,3 @@
-import { relativeDay } from "../../src/lib/time";
 import { ask, type AiModel } from "./ai";
 import type { Feature } from "./config";
 import type { Data, Practice } from "./data/types";
@@ -75,7 +74,6 @@ export const FEATURE_OF: Record<Command["kind"], Feature> = {
   in: "signup",
   out: "signup",
   open: "board",
-  lock: "board",
   cancel: "board",
   add: "board",
   teams: "board",
@@ -113,8 +111,6 @@ export class Commands {
         return this.write(() => this.dropOut(cmd.practice, cmd.lists, cmd.confirm, req));
       case "open":
         return this.write(() => this.open(cmd.practice, req));
-      case "lock":
-        return this.lock(cmd.practice, req);
       case "cancel":
         return this.write(() => this.cancel(cmd.practice, cmd.reason, cmd.confirm, req));
       case "add":
@@ -300,15 +296,6 @@ export class Commands {
     await this.deps.data.openEvent(p.event.id);
     const post = this.deps.features.has("post") ? ` Post the link with \`!list post ${selector}\`.` : "";
     return reply(`Sign-ups for ${f.day(p)} are open.${post}`);
-  }
-
-  /** The app has no lock button: a list locks on its own 2 hours before its first list starts. */
-  private async lock(selector: string, req: Request): Promise<Out[]> {
-    const t = await this.boardTarget(selector, req);
-    if (Array.isArray(t)) return t;
-    const { p } = t;
-    if (["locked", "teams", "past"].includes(p.stage)) return reply(`${f.day(p)} is already locked.`);
-    return reply(`There's no early lock yet: ${f.day(p)} locks on its own ${relativeDay(p.event.locks_at, this.now)}, 2 hours before the first list starts.`);
   }
 
   /** cancel_event, after a "yes" from the same board member in the same chat. */

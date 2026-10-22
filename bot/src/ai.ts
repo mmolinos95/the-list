@@ -42,7 +42,6 @@ export const TOOLS: Tool[] = [
   { name: "drop_out", feature: "signup", description: "Take the asker off a practice. Only when they clearly say they can't come.", parametersJsonSchema: obj({ practice: PRACTICE, lists: LISTS }, ["practice"]), toCommand: (a) => ({ kind: "out", practice: str(a.practice), lists: str(a.lists), confirm: false }) },
   { name: "post_signup_message", feature: "post", board: true, description: "Board: post the practice's sign-up message with its link in the group.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "post", practice: str(a.practice) }) },
   { name: "open_signups", feature: "board", board: true, description: "Board: open sign-ups for a practice now.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "open", practice: str(a.practice) }) },
-  { name: "lock_list", feature: "board", board: true, description: "Board: lock a practice's list.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "lock", practice: str(a.practice) }) },
   {
     name: "cancel_practice",
     feature: "board",

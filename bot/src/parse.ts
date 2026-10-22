@@ -12,7 +12,6 @@ export type Command =
   | { kind: "in"; practice: string; lists: string }
   | { kind: "out"; practice: string; lists: string; confirm: boolean }
   | { kind: "open"; practice: string }
-  | { kind: "lock"; practice: string }
   | { kind: "cancel"; practice: string; reason: string; confirm: boolean }
   | { kind: "add"; practice: string; rest: string }
   | { kind: "teams"; practice: string }
@@ -31,7 +30,6 @@ const KEYWORDS: Record<string, Command["kind"]> = {
   out: "out",
   drop: "out",
   open: "open",
-  lock: "lock",
   cancel: "cancel",
   add: "add",
   teams: "teams",
@@ -91,7 +89,6 @@ export function parseCommand(body: string): Command {
       return { kind, practice, rest: after };
     case "post":
     case "open":
-    case "lock":
     case "teams":
       return after ? { kind: "free", text } : { kind, practice };
   }
