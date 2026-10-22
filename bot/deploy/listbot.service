@@ -1,0 +1,31 @@
+# systemd unit for The List bot. Installed by upload.sh to /etc/systemd/system/.
+#   sudo systemctl status listbot     sudo journalctl -u listbot -f
+[Unit]
+Description=The List WhatsApp bot (CBS FC)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=listbot
+Group=listbot
+WorkingDirectory=/opt/listbot
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning --enable-source-maps dist/main.js
+Environment=NODE_ENV=production
+# Restart on crashes, but not on exit 78: WhatsApp logged the bot out (or it
+# was never linked), and running `npm run link` again needs a person.
+Restart=on-failure
+RestartSec=15
+RestartPreventExitStatus=78
+MemoryMax=700M
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/listbot/data
+
+[Install]
+WantedBy=multi-user.target

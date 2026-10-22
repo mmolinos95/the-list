@@ -2,10 +2,10 @@ import { buildApp } from "./app";
 import { Bot } from "./bot";
 import { Pacer, pacedChat } from "./chat";
 import { loadEnvFile, readConfig } from "./config";
-import { WhatsApp } from "./whatsapp";
+import { NotLinked, WhatsApp } from "./whatsapp";
 
-// `npm start`: the bot. Exits with 78 when WhatsApp logs it out, which
-// listbot.service treats as "don't restart" (re-linking needs a person).
+// `npm start`: the bot. Exits with 78 when WhatsApp logged it out or it was
+// never linked, which listbot.service treats as "don't restart" (linking needs a person).
 
 loadEnvFile();
 let config: ReturnType<typeof readConfig>;
@@ -53,4 +53,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   });
 }
 
-await wa.start();
+await wa.start().catch((err) => {
+  log(err instanceof Error ? err.message : String(err));
+  process.exit(err instanceof NotLinked ? 78 : 1);
+});

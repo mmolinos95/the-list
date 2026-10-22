@@ -19,6 +19,9 @@ import { phoneFromJid } from "./phone";
 
 export const authDir = (dataDir: string) => join(dataDir, "auth");
 
+/** Thrown by start() before `npm run link` was done. Needs a person, so the service shouldn't retry. */
+export class NotLinked extends Error {}
+
 const logger = pino({ level: process.env.BAILEYS_LOG ?? "warn" });
 
 function textOf(m: proto.IMessage) {
@@ -92,7 +95,7 @@ export class WhatsApp implements Chat {
 
   async start() {
     const { state, saveCreds } = await useMultiFileAuthState(authDir(this.opts.dataDir));
-    if (!state.creds.registered) throw new Error("WhatsApp isn't linked yet. Run `npm run link` first.");
+    if (!state.creds.registered) throw new NotLinked("WhatsApp isn't linked yet. Run `npm run link` first.");
     const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: undefined }));
 
     const sock = makeWASocket({

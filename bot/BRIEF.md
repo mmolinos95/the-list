@@ -120,3 +120,28 @@ The app has no lock button: `src/app/admin/actions.ts` only has **Open sign-ups*
 **What the bot does now:** `!list lock thu` (board only) replies with when the list locks on its own. `!list open thu` calls `open_event`, like the app's button.
 
 **Decide:** keep that, drop the command, or add an early-lock function to the app (upstream) first.
+
+### 2. Baileys version: 7.0.0-rc14 (a release candidate)
+
+"Latest stable" is ambiguous on npm today: the `latest` tag is `7.0.0-rc14` (July 2026), and the newest non-RC is `6.7.24` (tagged `legacy`). I pinned **7.0.0-rc14** exactly, because the "who is asking" design needs v7's hidden-number (`@lid`) support: `participantAlt` on messages and the LID-to-phone mapping. Nothing outside `src/whatsapp.ts` and `src/link.ts` touches Baileys, so switching is small.
+
+**Decide:** keep 7.0.0-rc14, or move to 6.7.24 (and lose most phone matching in a Community group).
+
+### 3. Gemini model name not verified
+
+This session couldn't reach Google's docs (ai.google.dev). `GEMINI_MODEL` defaults to `gemini-flash-latest`, Google's alias for the current Flash model, so nothing old is hardcoded; any model ID can be set in `bot/.env`.
+
+**Check:** in AI Studio, that the alias (or the model you set) is on the free tier for the club's key.
+
+### 4. The bot sends the emails its actions queue
+
+`sign_up`, `drop_signups`, `cancel_event` and `add_signup` queue emails in the `emails` table, and the app sends them right after its own actions. Without the bot doing the same, confirmation emails (with the drop-out link) would wait for the daily job, up to a day. So after each write the bot runs the app's outbox logic: same templates (`src/lib/notify/templates.ts`, imported directly), same links, same 450-a-day limit, through the same club Gmail, and `claim_emails` stops the bot and the app sending one twice.
+
+**Confirm** that's OK, or say if the bot should leave emails to the app (an app change would then be needed to flush sooner).
+
+### 5. Smaller choices I made (say if you want them different)
+
+- **Late drops ask first.** `!list out thu` after the lock replies "this counts as a late drop and the board is told" and waits for `!list out thu yes`, like the app's drop page warns. Not in the brief.
+- **`!list teams thu` shuffles and shows the draft teams, with names, in the group.** Sending the team emails stays in the app (the reply links to the team builder). A `!list teams thu send` (`send_teams`) would be easy to add.
+- **Phone matching only matches members with an email**, so a walk-in row added by the board (no email) is never picked; that person links by email instead.
+- **Root config:** `tsconfig.json` excludes `bot/` and `eslint.config.mjs` ignores `bot/**`, so the app's `tsc` and lint don't trip over the bot's own packages. No other files outside `bot/` changed, and nothing in `src/` or `supabase/`.
