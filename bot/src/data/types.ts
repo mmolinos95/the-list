@@ -58,11 +58,24 @@ export interface Data {
   addSignup(listId: string, name: string, spot: Spot, by: string): Promise<{ signup_id: string; spot: Spot }>;
   shuffleTeams(eventId: string): Promise<void>;
 
-  /** Outbox (see outbox.ts). */
-  sentSince(iso: string): Promise<number>;
-  claimEmails(limit: number): Promise<EmailRow[]>;
-  markSent(id: string): Promise<void>;
-  markFailed(id: string, error: string): Promise<void>;
+  // Emails a bot write queued (see quiet.ts). Every row a database function
+  // writes in one call carries that call's now(), so these timestamps pick out
+  // exactly the emails the bot's own call queued, never the app's.
+
+  /** members.last_signup_at: set by sign_up. */
+  lastSignupAt(memberId: string): Promise<string | null>;
+  /** The latest dropped_at of this member's spots in this practice: set by drop_signups. */
+  lastDroppedAt(eventId: string, memberId: string): Promise<string | null>;
+  /** events.cancelled_at: set by cancel_event. */
+  cancelledAt(eventId: string): Promise<string | null>;
+  /** created_at of the member a walk-in sign-up made: set by add_signup. */
+  addedAt(signupId: string): Promise<string | null>;
+  /**
+   * Deletes the not-yet-sent emails of one kind that one call queued (same
+   * event, created_at = that call's time) for these members, or for rows with
+   * no member when memberIds is null (board emails). Returns what it deleted.
+   */
+  takeEmails(q: { eventId: string; kind: string; at: string; memberIds: string[] | null }): Promise<EmailRow[]>;
 }
 
 type RawSignup = Omit<SignupRow, "name"> & { members: { name: string } | null };

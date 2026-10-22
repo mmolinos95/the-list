@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { boardActionUrl, dropUrl, signupUrl } from "../src/links";
+import { signupUrl } from "../src/links";
 import { sharePost } from "../src/share";
 
-// The bot re-implements the app's signed links and WhatsApp post (the app's
+// The bot re-implements the app's sign-up link and WhatsApp post (the app's
 // versions import server-only and env.ts). Same input, same output.
 
 const SECRET = "test-secret";
@@ -11,8 +11,6 @@ const SITE = "https://list.example";
 let app: {
   share: typeof import("../../src/lib/share");
   signup: typeof import("../../src/lib/signup-link");
-  drop: typeof import("../../src/lib/drop-link");
-  act: typeof import("../../src/lib/board-action");
 };
 beforeAll(async () => {
   process.env.DROP_LINK_SECRET = SECRET;
@@ -20,8 +18,6 @@ beforeAll(async () => {
   app = {
     share: await import("../../src/lib/share"),
     signup: await import("../../src/lib/signup-link"),
-    drop: await import("../../src/lib/drop-link"),
-    act: await import("../../src/lib/board-action"),
   };
 });
 
@@ -56,17 +52,5 @@ describe("the bot's links and post match the app's", () => {
     const winterLists = lists.map((l) => ({ ...l, starts_at: "2026-12-04T15:00:00Z", ends_at: "2026-12-04T16:30:00Z" }));
     expect(sharePost(SECRET, SITE, winter, winterLists)).toBe(app.share.shareFor(winter, winterLists).post);
     expect(sharePost(SECRET, SITE, event, lists)).toMatch(/^List Sign Up: 10\/9 Friday Practice\nSkills: 10:00 - 11:00 \(40 players\)\nGames: 11:00 - 12:00 \(32 players\)\n/);
-  });
-
-  it("personal drop-out link", () => {
-    const m = "22222222-2222-4222-8222-222222222222";
-    expect(dropUrl(SECRET, SITE, event.id, m)).toBe(app.drop.dropUrl(event.id, m));
-  });
-
-  it("one-tap board action link", () => {
-    const a = { a: "cancel" as const, e: event.id, to: "pres@example.com", x: 1_800_000_000_000 };
-    expect(boardActionUrl(SECRET, SITE, a)).toBe(app.act.boardActionUrl(a));
-    const p = { a: "promote" as const, e: event.id, l: "Games", to: "pres@example.com", x: 1_800_000_000_000 };
-    expect(boardActionUrl(SECRET, SITE, p)).toBe(app.act.boardActionUrl(p));
   });
 });

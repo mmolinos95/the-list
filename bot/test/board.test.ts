@@ -39,14 +39,15 @@ describe("board commands (phase 4)", () => {
     expect(await run(`open ${ev.slug}`)).toMatch(/already open/);
   });
 
-  it("!list cancel asks first, then cancels with the reason and emails everyone", async () => {
+  it("!list cancel asks first, then cancels with the reason in one group message, no emails", async () => {
     const ev = await practice(db, { startsIn: "5 days" });
     await dbSignUp(db, ev.id, [ev.lists.Games], "Ana Diaz", "ana@example.com");
-    expect(await run(`cancel ${ev.slug} field is flooded`)).toMatch(/Cancel .*\? Everyone on it \(1 player\) gets an email\. Reason: "field is flooded"\.\nSend `!list cancel \S+ yes`/);
+    expect(await run(`cancel ${ev.slug} field is flooded`)).toMatch(/Cancel .*\? I'll post it in the group \(1 player signed up\)\. Reason: "field is flooded"\.\nSend `!list cancel \S+ yes`/);
     expect(await one(`select cancelled_at from events where id = $1`, [ev.id])).toEqual({ cancelled_at: null });
-    expect(await run(`cancel ${ev.slug} yes`)).toMatch(/is cancelled\. Emailing 1 player\./);
+    const out = await commands.run(parseCommand(`cancel ${ev.slug} yes`), { asker: await askerOf(data, "pres@example.com"), chatKey: "chat|pres" });
+    expect(out).toEqual([{ quote: false, text: expect.stringMatching(/^\*Thursday practice, .*, is cancelled\.\*\nReason: field is flooded\n1 player was signed up; nobody needs to drop out\.$/) }]);
     expect(await one(`select cancel_reason, cancelled_by from events where id = $1`, [ev.id])).toEqual({ cancel_reason: "field is flooded", cancelled_by: presId });
-    expect(await one(`select count(*)::int as n from emails where kind = 'cancelled' and event_id = $1`, [ev.id])).toEqual({ n: 1 });
+    expect(await one(`select count(*)::int as n from emails where kind = 'cancelled' and event_id = $1`, [ev.id])).toEqual({ n: 0 });
     expect(await run(`cancel ${ev.slug} yes`)).toMatch(/already cancelled/);
   });
 

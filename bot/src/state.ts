@@ -51,6 +51,13 @@ export class LocalState {
     for (const id of new Set(waIds)) stmt.run(id, link.email.toLowerCase(), link.name, link.phone, this.now());
   }
 
+  /** The WhatsApp ID to @mention for a member: their hidden ID (@lid) if known, else their phone JID. */
+  mentionFor(email: string): string | null {
+    const rows = this.db.prepare(`select wa_id from links where email = ? order by linked_at desc`).all(email.toLowerCase()) as { wa_id: string }[];
+    const ids = rows.map((r) => r.wa_id);
+    return ids.find((id) => id.endsWith("@lid")) ?? ids.find((id) => id.endsWith("@s.whatsapp.net")) ?? null;
+  }
+
   flow(waId: string): Flow | null {
     const row = this.db.prepare(`select data, updated_at from flows where wa_id = ?`).get(waId) as { data: string; updated_at: number } | undefined;
     // A flow left alone for a day is forgotten.

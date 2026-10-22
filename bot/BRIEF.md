@@ -21,7 +21,7 @@ This repo is a fork of `cbs-futbol-club/cbs-futbol-club-app` (remote `upstream`)
 - **Baileys** (`@whiskeysockets/baileys`, latest stable) for WhatsApp, logged in as a linked device of the bot's WhatsApp Business account (a Google Voice number). Log in with a **pairing code** (`requestPairingCode`), not a QR, so it can be done from a terminal: `npm run link` prints an 8-character code that Martin types on the phone. The auth state dir is gitignored.
 - **Supabase** with `@supabase/supabase-js` and the secret key, calling the existing functions via `rpc()` and reading tables directly.
 - **Gemini** with `@google/genai`, free tier. Check Google's docs for the current free Flash model name; don't hardcode an old one.
-- **Email** with `nodemailer` + the club Gmail (same as the app). With no Gmail settings, print emails to the terminal, the way the app does in development.
+- **Email** with `nodemailer` + the club Gmail (same as the app), **only for the 6-digit linking code**. Every notification about practices goes to WhatsApp (see Notifications). With no Gmail settings, print emails to the terminal, the way the app does in development.
 - Local state (linked WhatsApp IDs, pending link codes, rate limits) in `node:sqlite`, in a file next to the auth state, gitignored. It holds personal data, so it lives only on the VM.
 
 ## How it behaves in WhatsApp (ban safety)
@@ -31,7 +31,7 @@ The bot number is unofficial (Baileys), so WhatsApp can ban it. Behave like a qu
 - Listen only in the groups named in `ALLOWED_GROUPS`. Ignore every other group.
 - Only react to messages starting with `!list` (case-insensitive) or @mentioning the bot.
 - Reply quoted under the question. Show "typing…" while working. One question at a time per chat; queue the rest.
-- Never @mention everyone. Never send a message nobody asked for, except a board-triggered `!list post`.
+- Never @mention everyone. Never send a message nobody asked for, except a board-triggered `!list post` or cancellation notice.
 - Keep a minimum gap between the bot's own messages (a couple of seconds) and a per-minute cap.
 - **DMs:** never start one. Answer a DM only if it's part of the linking flow below (the user sent `link`, or is mid-flow). Ignore all other DMs.
 - Reconnect with backoff after disconnects. If logged out, log it loudly and stop; don't loop.
@@ -69,7 +69,19 @@ Practices are picked with loose input: `thu`, `thursday`, `10/23`, `next`. Times
 | 4 | Board | `!list teams thu` | `shuffle_teams`, then show the teams |
 | 5 | Anyone | `@bot <any question>` or `!list <free text>` | Gemini picks one of the commands above (function calling) and the bot runs it with the same permission checks. Gemini never writes to the database directly. |
 
-Notices about spots opening or cancellations are **not** automatic. They only go out when the board asks.
+Notices about spots opening or cancellations are **not** automatic. They only go out as part of answering a command.
+
+## Notifications: WhatsApp only
+
+Members are expected to use the bot, not the website, so everything the bot does is announced in WhatsApp, never by email. After each bot write (`sign_up`, `drop_signups`, `add_signup`, `cancel_event`) the bot handles the emails that write queued in the `emails` table:
+
+- **Delete them**, don't send them. Only the ones caused by the bot's own call: same event, member and kind, created during that call. Emails from the website or the board's app are never touched.
+- **The person who asked** gets the quoted reply.
+- **Anyone promoted off the waitlist** gets an @mention in that reply if their WhatsApp is linked, or their name in plain text if not (names are already public on the list).
+- **Cancellations** get one group message, with no mass @mentions.
+- Late-drop heads-ups to the board are deleted like the rest (board emails are paused on live).
+
+The emailed 6-digit linking code stays: it's identity proof, not a notification.
 
 **Gemini privacy:** the free tier may be used by Google for training. Only send Gemini the question, practice times, places and counts, and the asker's own status. Never send other members' names, emails or phones. If Gemini is out of quota or slow (over 20s), say so and suggest the plain commands.
 
@@ -80,7 +92,7 @@ SUPABASE_URL=
 SUPABASE_SECRET_KEY=
 DROP_LINK_SECRET=          # same value as the app's, so posted links work
 SITE_URL=https://cbsfc-the-list.vercel.app
-GMAIL_USER=
+GMAIL_USER=                # only for the linking code
 GMAIL_APP_PASSWORD=
 GEMINI_API_KEY=
 BOT_PHONE=                 # E.164, the bot's own number (pairing + wa.me links)
@@ -117,27 +129,23 @@ _(Add anything here that needs Martin, instead of guessing.)_
 
 The app has no lock button and no function to lock early (a list locks on its own 2 hours before its first list starts). **Martin:** remove `!list lock` completely; keep `!list open`. Done: no command, help text, Gemini tool or tests for it; `!list lock thu` is now just unrecognized text.
 
-### 2. Baileys version: 7.0.0-rc14 (a release candidate)
+### 2. Baileys version — DECIDED: keep 7.0.0-rc14
 
-"Latest stable" is ambiguous on npm today: the `latest` tag is `7.0.0-rc14` (July 2026), and the newest non-RC is `6.7.24` (tagged `legacy`). I pinned **7.0.0-rc14** exactly, because the "who is asking" design needs v7's hidden-number (`@lid`) support: `participantAlt` on messages and the LID-to-phone mapping. Nothing outside `src/whatsapp.ts` and `src/link.ts` touches Baileys, so switching is small.
+npm's `latest` tag is the release candidate `7.0.0-rc14`; the newest non-RC is `6.7.24` (`legacy`). v7 is needed for hidden-number (`@lid`) support: `participantAlt` on messages and the LID-to-phone mapping. **Martin:** keep 7.0.0-rc14 (pinned exactly). Only `src/whatsapp.ts` and `src/link.ts` touch Baileys.
 
-**Decide:** keep 7.0.0-rc14, or move to 6.7.24 (and lose most phone matching in a Community group).
+### 3. Gemini model name — DECIDED: Martin checks it during local setup
 
-### 3. Gemini model name not verified
+This session couldn't reach Google's docs. `GEMINI_MODEL` defaults to `gemini-flash-latest` (Google's alias for the current Flash model) and can be set in `bot/.env`. **Martin** checks in AI Studio that it's on the free tier when setting up. No code change.
 
-This session couldn't reach Google's docs (ai.google.dev). `GEMINI_MODEL` defaults to `gemini-flash-latest`, Google's alias for the current Flash model, so nothing old is hardcoded; any model ID can be set in `bot/.env`.
+### 4. Emails — DECIDED: WhatsApp only
 
-**Check:** in AI Studio, that the alias (or the model you set) is on the free tier for the club's key.
+The first build sent the emails the bot's writes queued, through the club Gmail. **Martin:** WhatsApp only; members are expected to use the bot, not the website. Done as described under **Notifications: WhatsApp only** above (`src/quiet.ts`). The outbox-sending code is gone; the linking code email stays.
 
-### 4. The bot sends the emails its actions queue
+How "caused by the bot's own call" is matched: every row a Postgres function writes in one call carries that call's `now()`, and the change records it too (`members.last_signup_at` for `sign_up`, `signups.dropped_at` for `drop_signups`, `events.cancelled_at` for `cancel_event`, the walk-in's `members.created_at` for `add_signup`). The bot deletes only unsent emails with that event, that kind, a matching member, and exactly that `created_at`.
 
-`sign_up`, `drop_signups`, `cancel_event` and `add_signup` queue emails in the `emails` table, and the app sends them right after its own actions. Without the bot doing the same, confirmation emails (with the drop-out link) would wait for the daily job, up to a day. So after each write the bot runs the app's outbox logic: same templates (`src/lib/notify/templates.ts`, imported directly), same links, same 450-a-day limit, through the same club Gmail, and `claim_emails` stops the bot and the app sending one twice.
+### 5. Smaller choices — DECIDED
 
-**Confirm** that's OK, or say if the bot should leave emails to the app (an app change would then be needed to flush sooner).
-
-### 5. Smaller choices I made (say if you want them different)
-
-- **Late drops ask first.** `!list out thu` after the lock replies "this counts as a late drop and the board is told" and waits for `!list out thu yes`, like the app's drop page warns. Not in the brief.
-- **`!list teams thu` shuffles and shows the draft teams, with names, in the group.** Sending the team emails stays in the app (the reply links to the team builder). A `!list teams thu send` (`send_teams`) would be easy to add.
-- **Phone matching only matches members with an email**, so a walk-in row added by the board (no email) is never picked; that person links by email instead.
-- **Root config:** `tsconfig.json` excludes `bot/` and `eslint.config.mjs` ignores `bot/**`, so the app's `tsc` and lint don't trip over the bot's own packages. No other files outside `bot/` changed, and nothing in `src/` or `supabase/`.
+- **Late drops ask first** — kept. `!list out thu` after the lock replies "The list has locked, so this counts as a late drop. Still drop?" and waits for `!list out thu yes`. **Martin:** keep the step, but don't say "the board is told" (board emails are paused on live). Done.
+- **`!list teams thu`** shuffles and shows the draft teams in the group; sending stays in the app — fine as built.
+- **Phone matching skips members without an email** (walk-ins) — fine as built.
+- **Root config:** `tsconfig.json` excludes `bot/` and `eslint.config.mjs` ignores `bot/**`; nothing else outside `bot/` changed — fine as built.

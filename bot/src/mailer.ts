@@ -1,7 +1,9 @@
 import nodemailer from "nodemailer";
 
-// Email through the club Gmail, like the app (src/lib/notify/email.ts). With
-// no Gmail settings, emails are printed to the terminal instead.
+// Email through the club Gmail, like the app (src/lib/notify/email.ts). The bot
+// only emails the 6-digit linking code (identity proof); every notification
+// about practices goes to WhatsApp (quiet.ts). With no Gmail settings, emails
+// are printed to the terminal instead.
 
 export type Mail = { to: string; subject: string; text: string; html?: string };
 export interface Mailer {

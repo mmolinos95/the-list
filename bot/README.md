@@ -16,9 +16,9 @@ Practices can be named loosely: `thu`, `thursday`, `next`, `today`, `tomorrow`, 
 | `read` | Member | `!list me` | Your spots and waitlist positions |
 | `post` | Board | `!list post thu` | Posts the app's **Copy WhatsApp post** text with the signed sign-up link |
 | `signup` | Member | `!list in thu [list]` | Signs you up (asks which list if there are several; `both` works) |
-| `signup` | Member | `!list out thu [list]` | Drops you (asks first if it would be a late drop) |
+| `signup` | Member | `!list out thu [list]` | Drops you (asks first if it would be a late drop). Whoever moves up is told in the same reply |
 | `board` | Board | `!list open thu` | Opens sign-ups now (the app's **Open sign-ups** button) |
-| `board` | Board | `!list cancel thu [reason]` | Asks to confirm, then `!list cancel thu yes` cancels and emails everyone |
+| `board` | Board | `!list cancel thu [reason]` | Asks to confirm, then `!list cancel thu yes` cancels and posts one notice in the group |
 | `board` | Board | `!list add thu Name [list] [waitlist]` | Adds a walk-in |
 | `board` | Board | `!list teams thu` | Shuffles teams and shows them. Send them from the app |
 | `ai` | Anyone | `@bot <question>` or `!list <anything else>` | Gemini answers, or picks one of the commands above and the bot runs it with the same checks |
@@ -74,16 +74,25 @@ Copy `.env.example` to `.env` (gitignored; never commit it):
 | Setting | What |
 |---|---|
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Same project and secret key as the app (Supabase → Project Settings → API Keys) |
-| `DROP_LINK_SECRET` | The app's value, so posted links and emailed drop-out links work |
+| `DROP_LINK_SECRET` | The app's value, so the links `!list post` makes work |
 | `SITE_URL` | The app's address |
-| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Club Gmail, for link codes and the emails the bot's actions queue. Empty = print to the terminal |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Club Gmail, only for the 6-digit linking codes. Empty = print to the terminal |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Google AI Studio key (free tier). The model defaults to `gemini-flash-latest` |
 | `BOT_PHONE` | The bot's own number, E.164 (`+1…`) |
 | `ALLOWED_GROUPS` | Exact group names, comma-separated |
 | `BOT_FEATURES` | Any of `read,post,signup,board,ai` |
 | `DATA_DIR` | Where the WhatsApp login and the local database live (default `./data`, gitignored) |
 
-Emails: after any write (sign-up, drop, cancel, walk-in) the bot sends the emails the database queued, with the app's own templates, the same 450-a-day limit, and `claim_emails` so the bot and the app never send one twice. Without `DROP_LINK_SECRET` it leaves them for the app's daily job.
+## Notifications: WhatsApp only
+
+Members are expected to use the bot, not the website, so anything the bot does is announced in WhatsApp, not by email. The database functions still queue their usual emails in the same call as the change (`sign_up`, `drop_signups`, `add_signup`, `cancel_event`); right after each bot call, the bot deletes exactly those emails and says it in the group instead (`src/quiet.ts`):
+
+- **The person who asked** gets the quoted reply.
+- **Whoever moves up from the waitlist** is in that same reply: @mentioned if their WhatsApp is linked, otherwise by name (names are already public on the list).
+- **A cancellation** is one group message, with no @mentions.
+- Late-drop heads-ups to the board are deleted too.
+
+Only the emails the bot's own call queued are deleted: same practice, kind and member, and the exact time of that call (every row a Postgres function writes in one call shares its `now()`). Emails from the website or the board's app are never touched. The only email the bot sends itself is the 6-digit linking code, which proves who someone is.
 
 ## Link WhatsApp
 
@@ -116,6 +125,13 @@ gcloud compute ssh listbot --zone us-east1-b -- -t \
 gcloud compute ssh listbot --zone us-east1-b -- sudo systemctl restart listbot
 ```
 
+### First live test
+
+- `!list` and `!list me` from a member whose number shows and from one whose number is hidden (`@lid`).
+- Linking by DM, start to finish.
+- With `signup` on: a drop that moves someone up. Check the @mention shows as their name in WhatsApp (the bot mentions their hidden ID when it has one, else their phone).
+- Check the `emails` table: nothing from the bot's actions should be left there.
+
 ### Day to day
 
 - **Update the code:** `bot/deploy/upload.sh` (add `--env` after changing `bot/.env`).
@@ -147,8 +163,9 @@ Files on the VM: `/opt/listbot/dist` (code), `/opt/listbot/.env` (settings, secr
 | `src/identity.ts`, `linking.ts`, `state.ts` | Who is asking; the DM linking flow; local state in `node:sqlite` |
 | `src/data/` | The database calls, for supabase-js (production) and plain SQL (tests) |
 | `src/ai.ts`, `gemini.ts` | The Gemini step and the real model |
-| `src/outbox.ts`, `mailer.ts` | Sending the emails the database queued; Gmail or the terminal |
-| `src/links.ts`, `share.ts` | Signed links and the WhatsApp post, re-implemented from `src/lib/` (tested to match) |
+| `src/quiet.ts` | Writes without their emails: deletes what the bot's own call queued, returns who moved up |
+| `src/mailer.ts` | The linking code email: Gmail or the terminal |
+| `src/links.ts`, `share.ts` | The signed sign-up link and the WhatsApp post, re-implemented from `src/lib/` (tested to match) |
 | `deploy/` | VM setup, systemd unit, upload script |
 
-The bot imports the app's pure helpers directly (`src/lib/time.ts`, `stage.ts`, `types.ts`, `notify/templates.ts`); `npm run build` bundles them into `dist/`.
+The bot imports the app's pure helpers directly (`src/lib/time.ts`, `stage.ts`, `types.ts`); `npm run build` bundles them into `dist/`.

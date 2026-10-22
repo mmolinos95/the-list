@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { Bot, MAX_AGE_S } from "../src/bot";
+import type { Commands } from "../src/commands";
 import { commandsFor, dataFor, FakeChat, FakeMailer, freshDb, member, memoryState, msg, practice, type Db } from "./helpers";
 
 let db: Db;
@@ -84,6 +85,19 @@ describe("the router", () => {
     expect(chat.out[0].text).toMatch(/The List bot/);
     expect(chat.out[1].text).toMatch(/don't know who you are/);
     expect(chat.typingLog).toEqual(chat.typingLog.map((_, i) => (i % 2 ? expect.stringMatching(/off$/) : expect.stringMatching(/on$/))));
+  });
+
+  it("passes @mentions and quoting through to WhatsApp", async () => {
+    const chat = new FakeChat();
+    const data = dataFor(db);
+    const commands = { run: async () => [{ text: "Done.\n⬆️ @98765 moves up", quote: true, mentions: ["98765@lid"] }, { text: "Notice", quote: false }] } as unknown as Commands;
+    const bot = new Bot({ chat, data, state: memoryState(), mailer: new FakeMailer(), commands, allowedGroups: ["CBS FC"], now: Date.now });
+    const m = msg({ text: "!list out thu" });
+    await bot.handle(m);
+    expect(chat.out).toEqual([
+      { chatId: m.chatId, text: "Done.\n⬆️ @98765 moves up", quotedId: m.id, mentions: ["98765@lid"] },
+      { chatId: m.chatId, text: "Notice" },
+    ]);
   });
 
   it("says sorry instead of crashing when something fails", async () => {

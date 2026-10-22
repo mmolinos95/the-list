@@ -84,13 +84,13 @@ export async function askerOf(data: Data, email: string): Promise<Asker> {
 }
 
 export class FakeChat implements Chat {
-  out: { chatId: string; text: string; quotedId?: string }[] = [];
+  out: { chatId: string; text: string; quotedId?: string; mentions?: string[] }[] = [];
   typingLog: string[] = [];
-  async reply(to: IncomingMessage, text: string) {
-    this.out.push({ chatId: to.chatId, text, quotedId: to.id });
+  async reply(to: IncomingMessage, text: string, mentions?: string[]) {
+    this.out.push({ chatId: to.chatId, text, quotedId: to.id, ...(mentions ? { mentions } : {}) });
   }
-  async send(chatId: string, text: string) {
-    this.out.push({ chatId, text });
+  async send(chatId: string, text: string, mentions?: string[]) {
+    this.out.push({ chatId, text, ...(mentions ? { mentions } : {}) });
   }
   async typing(chatId: string, on: boolean) {
     this.typingLog.push(`${chatId}:${on ? "on" : "off"}`);

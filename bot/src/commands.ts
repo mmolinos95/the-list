@@ -6,12 +6,14 @@ import type { Asker } from "./identity";
 import type { Command } from "./parse";
 import { linkUrl } from "./phone";
 import { matchLists, pickPractice } from "./pick";
+import { addQuietly, cancelQuietly, dropQuietly, signUpQuietly, type Promotion } from "./quiet";
 import { sharePost } from "./share";
 
 // Runs a parsed command for someone. Every permission check lives here, so a
 // command picked by Gemini (ai.ts) gets exactly the same checks as a typed one.
 
-export type Out = { text: string; quote: boolean };
+/** One message to send. `mentions` are WhatsApp IDs written as "@<number>" in the text. */
+export type Out = { text: string; quote: boolean; mentions?: string[] };
 
 export type CommandDeps = {
   data: Data;
@@ -22,8 +24,8 @@ export type CommandDeps = {
   now: () => Date;
   /** Gemini (gemini.ts), for free-text questions. */
   ai?: AiModel;
-  /** Called after any write, to send the emails it queued (outbox.ts). */
-  afterWrite?: () => void;
+  /** The WhatsApp ID to @mention for a member's email, if they linked one (state.ts). */
+  mentionFor?: (email: string) => string | null;
 };
 
 export type Request = {
@@ -218,14 +220,14 @@ export class Commands {
       lists = m.lists;
     }
 
-    const r = await this.deps.data.signUp(p.event.id, lists.map((l) => l.id), who.name, who.email, who.phone);
+    const r = await signUpQuietly(this.deps.data, p.event.id, lists.map((l) => l.id), who.name, who.email, who.phone);
     const order = (id: string) => p.lists.findIndex((l) => l.id === id);
     const lines = [...r.results].sort((a, b) => order(a.list_id) - order(b.list_id)).map((x) => {
       if (x.already) return x.spot === "main" ? `You're already on *${x.list}* (#${x.position} of ${x.cap}).` : `You're already #${x.position} on the *${x.list}* waitlist.`;
       if (x.spot === "main") return `You're in: *${x.list}*, #${x.position} of ${x.cap}.`;
       return `*${x.list}* is full. You're #${x.position} on the waitlist and move up on your own if a spot opens before the lock.`;
     });
-    if (r.created) lines.push(`${f.day(p)}. Confirmation (with a drop-out link) is in your email.`);
+    if (r.created) lines.push(`${f.day(p)}. Can't make it? \`!list out ${selector}\`.`);
     return reply(lines.join("\n"));
   }
 
@@ -247,20 +249,20 @@ export class Commands {
       if (lists.length === 0) return reply(`You're not on ${m.lists.map((l) => `*${l.name}*`).join(" or ")} for ${f.day(p)}.`);
     }
 
-    // After the lock a drop is a late drop (the board is told), so ask first.
+    // After the lock a drop is a late drop, so ask first.
     const late = this.now.getTime() >= Date.parse(p.event.locks_at) && lists.some((l) => l.main.some((s) => s.member_id === who.member!.id));
     const key = `${req.chatKey}|out|${p.event.id}`;
     if (late && !(confirm || this.pending.take(key, this.now.getTime()))) {
       this.pending.set(key, "yes", this.now.getTime());
       const cmd = `!list out ${selector}${listText ? ` ${listText}` : ""} yes`;
-      return reply(`The list has locked, so this counts as a late drop and the board is told. Still drop? Send \`${cmd}\`.`);
+      return reply(`The list has locked, so this counts as a late drop. Still drop? Send \`${cmd}\`.`);
     }
 
-    const r = await this.deps.data.drop(p.event.id, who.member!.id, lists.map((l) => l.id));
+    const r = await dropQuietly(this.deps.data, p.event.id, who.member!.id, lists.map((l) => l.id), this.now);
     if (r.dropped.length === 0) return reply(`You're not on ${f.day(p)}.`);
     const names = r.dropped.map((d) => `*${d.list}*`).join(" and ");
-    const tail = r.dropped.some((d) => d.late) ? " The list had locked, so the board was told." : r.dropped.some((d) => d.spot === "main") ? " Your spot went to the next person on the waitlist, if there was one." : "";
-    return reply(`Done: you're off ${names} for ${f.day(p)}.${tail}`);
+    const tail = r.dropped.some((d) => d.late) ? " It was a late drop, so nobody moves up on their own." : "";
+    return this.withPromotions(`Done: you're off ${names} for ${f.day(p)}.${tail}`, r.promoted);
   }
 
   // Phase 5: free-text questions (Gemini) -----------------------------------------
@@ -311,11 +313,15 @@ export class Commands {
       this.pending.set(key, reason, now);
       const count = new Set(p.lists.flatMap((l) => [...l.main, ...l.waitlist].map((s) => s.member_id))).size;
       const why = reason ? ` Reason: "${reason}".` : "";
-      return reply(`Cancel ${f.day(p)}? Everyone on it (${f.players(count)}) gets an email.${why}\nSend \`!list cancel ${selector} yes\` within 10 minutes to confirm.`);
+      return reply(`Cancel ${f.day(p)}? I'll post it in the group (${f.players(count)} signed up).${why}\nSend \`!list cancel ${selector} yes\` within 10 minutes to confirm.`);
     }
-    const saved = this.pending.take(key, now);
-    const n = await this.deps.data.cancelEvent(p.event.id, (reason || saved || "").slice(0, 300), who.board!.id);
-    return reply(n ? `${f.day(p)} is cancelled. Emailing ${f.players(n)}.` : `${f.day(p)} is cancelled. Nobody was signed up, so no emails went out.`);
+    const why = (reason || this.pending.take(key, now) || "").slice(0, 300);
+    const n = await cancelQuietly(this.deps.data, p.event.id, why, who.board!.id, this.now);
+    // One message for the whole group; no @mentions.
+    const lines = [`*${p.event.title}, ${f.day(p)}, is cancelled.*`];
+    if (why) lines.push(`Reason: ${why}`);
+    lines.push(n ? `${f.players(n)} ${n === 1 ? "was" : "were"} signed up; nobody needs to drop out.` : "Nobody was signed up yet.");
+    return [{ text: lines.join("\n"), quote: false }];
   }
 
   /** add_signup for a walk-in: "Jane Doe [list] [waitlist]". */
@@ -344,10 +350,10 @@ export class Commands {
     if (name.length > 80) return reply("That name is too long.");
     if (!list) return reply(`Which list? ${f.listChoices(p)}. Send \`!list add ${selector} ${name} ${p.lists[0].name.toLowerCase()}\`.`);
 
-    const r = await this.deps.data.addSignup(list.id, name, spot, who.board!.id);
+    const r = await addQuietly(this.deps.data, p.event.id, list.id, name, spot, who.board!.id, this.now);
     const where = r.spot === "main" ? "the main list" : "the waitlist";
     const over = r.spot === "main" && list.main.length + 1 > list.cap ? ` That's ${list.main.length + 1} of ${list.cap}.` : "";
-    return reply(`Added *${name}* to ${where} for *${list.name}*, ${f.day(p)}.${over}`);
+    return this.withPromotions(`Added *${name}* to ${where} for *${list.name}*, ${f.day(p)}.${over}`, r.promoted);
   }
 
   /** shuffle_teams, then the draft teams. Sending them stays in the app. */
@@ -381,7 +387,7 @@ export class Commands {
     }
   }
 
-  /** Runs a write, sends its emails, and turns database errors into plain words. */
+  /** Runs a write and turns database errors into plain words. */
   private async write(fn: () => Promise<Out[]>): Promise<Out[]> {
     try {
       return await fn();
@@ -389,9 +395,19 @@ export class Commands {
       const text = friendly(err);
       if (!text) throw err;
       return reply(text);
-    } finally {
-      this.deps.afterWrite?.();
     }
+  }
+
+  /** The quoted reply, plus a line for everyone who moved up: an @mention if they linked WhatsApp, else their name. */
+  private withPromotions(text: string, promoted: Promotion[]): Out[] {
+    const mentions: string[] = [];
+    const lines = promoted.map((x) => {
+      const jid = this.deps.mentionFor?.(x.email) ?? null;
+      if (jid) mentions.push(jid);
+      const who = jid ? `@${jid.split("@")[0]}` : `*${x.name}*`;
+      return `⬆️ ${who} moves up from the waitlist: in for *${x.list}* (#${x.position} of ${x.cap}).`;
+    });
+    return [{ text: [text, ...lines].join("\n"), quote: true, ...(mentions.length ? { mentions } : {}) }];
   }
 
   // Helpers -----------------------------------------------------------------------

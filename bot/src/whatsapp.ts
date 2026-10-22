@@ -188,13 +188,13 @@ export class WhatsApp implements Chat {
     return this.sock;
   }
 
-  async reply(to: IncomingMessage, text: string) {
+  async reply(to: IncomingMessage, text: string, mentions?: string[]) {
     const quoted = this.raw.get(to.id);
-    this.remember(await this.socket().sendMessage(to.chatId, { text }, quoted ? { quoted } : undefined));
+    this.remember(await this.socket().sendMessage(to.chatId, { text, mentions }, quoted ? { quoted } : undefined));
   }
 
-  async send(chatId: string, text: string) {
-    this.remember(await this.socket().sendMessage(chatId, { text }));
+  async send(chatId: string, text: string, mentions?: string[]) {
+    this.remember(await this.socket().sendMessage(chatId, { text, mentions }));
   }
 
   async typing(chatId: string, on: boolean) {

@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { PRACTICE_SELECT, shapePractice, type Data, type RawEvent } from "./types";
+import { PRACTICE_SELECT, shapePractice, type Data, type EmailRow, type RawEvent } from "./types";
 
 // Data over supabase-js with the secret key, the same way the app's server
 // does it: rules run in the existing Postgres functions via rpc().
@@ -53,17 +53,35 @@ export function supabaseData(url: string, secretKey: string): Data {
     addSignup: (listId, name, spot, by) => rpc("add_signup", { p_list: listId, p_name: name, p_email: null, p_phone: null, p_spot: spot, p_by: by }),
     shuffleTeams: (eventId) => rpc("shuffle_teams", { p_event: eventId }),
 
-    async sentSince(iso) {
-      const { count, error } = await db.from("emails").select("id", { count: "exact", head: true }).eq("status", "sent").gte("sent_at", iso);
-      if (error) throw new Error(error.message);
-      return count ?? 0;
+    async lastSignupAt(memberId) {
+      return check(await db.from("members").select("last_signup_at").eq("id", memberId).maybeSingle())?.last_signup_at ?? null;
     },
-    claimEmails: (limit) => rpc("claim_emails", { p_limit: limit }),
-    async markSent(id) {
-      check(await db.from("emails").update({ status: "sent", sent_at: new Date().toISOString(), last_error: null }).eq("id", id));
+    async lastDroppedAt(eventId, memberId) {
+      const rows = check(
+        await db
+          .from("signups")
+          .select("dropped_at, event_lists!inner(event_id)")
+          .eq("member_id", memberId)
+          .eq("status", "dropped")
+          .eq("event_lists.event_id", eventId)
+          .order("dropped_at", { ascending: false })
+          .limit(1),
+      );
+      return (rows?.[0]?.dropped_at as string | undefined) ?? null;
     },
-    async markFailed(id, error) {
-      check(await db.from("emails").update({ status: "failed", last_error: error.slice(0, 500), claimed_at: null }).eq("id", id));
+    async cancelledAt(eventId) {
+      return check(await db.from("events").select("cancelled_at").eq("id", eventId).maybeSingle())?.cancelled_at ?? null;
+    },
+    async addedAt(signupId) {
+      const row = check(await db.from("signups").select("members(created_at)").eq("id", signupId).maybeSingle());
+      return (row?.members as unknown as { created_at: string } | null)?.created_at ?? null;
+    },
+    async takeEmails({ eventId, kind, at, memberIds }) {
+      if (memberIds && memberIds.length === 0) return [];
+      // PostgREST returns full microseconds; "Z" keeps the value out of URL "+" trouble.
+      const base = db.from("emails").delete().eq("event_id", eventId).eq("kind", kind).eq("created_at", at.replace(/\+00(:00)?$/, "Z")).neq("status", "sent");
+      const filtered = memberIds ? base.in("member_id", memberIds) : base.is("member_id", null);
+      return check(await filtered.select("id, kind, to_address, member_id, event_id, payload")) as EmailRow[];
     },
   };
 }

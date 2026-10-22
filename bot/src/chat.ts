@@ -20,10 +20,10 @@ export type IncomingMessage = {
 };
 
 export interface Chat {
-  /** Replies quoted under the message. */
-  reply(to: IncomingMessage, text: string): Promise<void>;
-  /** A plain message in a chat (the board's "!list post"). */
-  send(chatId: string, text: string): Promise<void>;
+  /** Replies quoted under the message. `mentions` are WhatsApp IDs written as "@<number>" in the text. */
+  reply(to: IncomingMessage, text: string, mentions?: string[]): Promise<void>;
+  /** A plain message in a chat (the board's "!list post", a cancellation notice). */
+  send(chatId: string, text: string, mentions?: string[]): Promise<void>;
   /** Shows or clears "typing…". */
   typing(chatId: string, on: boolean): Promise<void>;
 }
@@ -73,8 +73,8 @@ export class Pacer {
 /** Wraps a Chat so every message goes through the pacer. Typing isn't paced. */
 export function pacedChat(chat: Chat, pacer: Pacer): Chat {
   return {
-    reply: (to, text) => pacer.run(() => chat.reply(to, text)),
-    send: (chatId, text) => pacer.run(() => chat.send(chatId, text)),
+    reply: (to, text, mentions) => pacer.run(() => chat.reply(to, text, mentions)),
+    send: (chatId, text, mentions) => pacer.run(() => chat.send(chatId, text, mentions)),
     typing: (chatId, on) => chat.typing(chatId, on),
   };
 }

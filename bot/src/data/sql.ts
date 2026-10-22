@@ -55,14 +55,27 @@ export function sqlData(q: Query): Data {
       await q(`select shuffle_teams($1)`, [eventId]);
     },
 
-    sentSince: async (iso) => Number(await value(`select count(*)::int as v from emails where status = 'sent' and sent_at >= $1`, [iso])),
-    claimEmails: async (limit) =>
-      (await q(`select id, kind, to_address, member_id, event_id, payload from claim_emails($1)`, [limit])) as never,
-    async markSent(id) {
-      await q(`update emails set status = 'sent', sent_at = now(), last_error = null where id = $1`, [id]);
-    },
-    async markFailed(id, error) {
-      await q(`update emails set status = 'failed', last_error = $2, claimed_at = null where id = $1`, [id, error.slice(0, 500)]);
+    // Timestamps as text, to keep Postgres' microseconds (a JS Date drops them).
+    lastSignupAt: async (memberId) => (await first<{ v: string }>(`select last_signup_at::text as v from members where id = $1`, [memberId]))?.v ?? null,
+    lastDroppedAt: async (eventId, memberId) =>
+      (
+        await first<{ v: string | null }>(
+          `select max(s.dropped_at)::text as v from signups s join event_lists l on l.id = s.list_id
+            where l.event_id = $1 and s.member_id = $2 and s.status = 'dropped'`,
+          [eventId, memberId],
+        )
+      )?.v ?? null,
+    cancelledAt: async (eventId) => (await first<{ v: string | null }>(`select cancelled_at::text as v from events where id = $1`, [eventId]))?.v ?? null,
+    addedAt: async (signupId) =>
+      (await first<{ v: string }>(`select m.created_at::text as v from signups s join members m on m.id = s.member_id where s.id = $1`, [signupId]))?.v ?? null,
+    async takeEmails({ eventId, kind, at, memberIds }) {
+      if (memberIds && memberIds.length === 0) return [];
+      const who = memberIds ? `member_id = any ($4::uuid[])` : `member_id is null`;
+      return (await q(
+        `delete from emails where event_id = $1 and kind = $2::email_kind and created_at = $3::timestamptz and status <> 'sent' and ${who}
+         returning id, kind, to_address, member_id, event_id, payload`,
+        memberIds ? [eventId, kind, at, memberIds] : [eventId, kind, at],
+      )) as never;
     },
   };
 }

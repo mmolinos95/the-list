@@ -5,14 +5,11 @@ import { supabaseData } from "./data/supabase";
 import type { Data } from "./data/types";
 import { mailerFor, type Mailer } from "./mailer";
 import { geminiModel } from "./gemini";
-import { processOutbox } from "./outbox";
 import { LocalState } from "./state";
 
 // Wiring shared by the bot (main.ts) and the terminal (cli.ts).
 
 export type App = { config: Config; data: Data; state: LocalState; mailer: Mailer; commands: Commands };
-
-const log = (msg: string, err?: unknown) => console.error(`[${new Date().toISOString()}] ${msg}`, err ?? "");
 
 export function buildApp(config: Config, overrides: Partial<Pick<App, "data" | "state" | "mailer">> = {}): App {
   const data = overrides.data ?? supabaseData(config.supabaseUrl, config.supabaseSecretKey);
@@ -26,10 +23,7 @@ export function buildApp(config: Config, overrides: Partial<Pick<App, "data" | "
     dropLinkSecret: config.dropLinkSecret,
     now: () => new Date(),
     ai: config.features.has("ai") && config.geminiApiKey ? geminiModel(config.geminiApiKey, config.geminiModel) : undefined,
-    // Without the link secret the emails can't carry their links, so they wait for the app's daily job.
-    afterWrite: config.dropLinkSecret
-      ? () => void processOutbox({ data, mailer, secret: config.dropLinkSecret!, siteUrl: config.siteUrl, log }).catch((err) => log("Outbox failed", err))
-      : undefined,
+    mentionFor: (email) => state.mentionFor(email),
   });
   return { config, data, state, mailer, commands };
 }

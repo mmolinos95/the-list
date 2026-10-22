@@ -1,6 +1,6 @@
 import type { Chat, IncomingMessage } from "./chat";
 import { KeyedQueue } from "./chat";
-import type { Commands } from "./commands";
+import type { Commands, Out } from "./commands";
 import type { Data } from "./data/types";
 import { whoIs } from "./identity";
 import { handleLinking, isLinkingMessage, type LinkingDeps } from "./linking";
@@ -46,11 +46,11 @@ export class Bot {
     return this.queue.push(msg.chatId, () => this.answer(msg, () => this.linking(msg)));
   }
 
-  private async answer(msg: IncomingMessage, work: () => Promise<{ text: string; quote: boolean }[]>) {
+  private async answer(msg: IncomingMessage, work: () => Promise<Out[]>) {
     const { chat } = this.deps;
     try {
       await chat.typing(msg.chatId, true);
-      let outs: { text: string; quote: boolean }[];
+      let outs: Out[];
       try {
         outs = await work();
       } catch (err) {
@@ -59,8 +59,8 @@ export class Bot {
       }
       await chat.typing(msg.chatId, false);
       for (const o of outs) {
-        if (o.quote) await chat.reply(msg, o.text);
-        else await chat.send(msg.chatId, o.text);
+        if (o.quote) await chat.reply(msg, o.text, o.mentions);
+        else await chat.send(msg.chatId, o.text, o.mentions);
       }
     } catch (err) {
       this.deps.log?.("Failed to send a reply", err);
