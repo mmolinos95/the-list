@@ -112,3 +112,11 @@ Build phases 1 → 5 in order, committing after each with its tests passing. Pus
 ## Needs a decision
 
 _(Add anything here that needs Martin, instead of guessing.)_
+
+### 1. `!list lock` has nothing to call (phase 4)
+
+The app has no lock button: `src/app/admin/actions.ts` only has **Open sign-ups** (`open_event`). A list locks on its own 2 hours before its first list starts (`locks_at`, kept by the `events_locks_at` trigger), and there is no database function to lock earlier. Locking early would need a migration (e.g. a `lock_event` function, plus letting `locks_at` differ from `starts_at − 2h`), which the hard rules rule out.
+
+**What the bot does now:** `!list lock thu` (board only) replies with when the list locks on its own. `!list open thu` calls `open_event`, like the app's button.
+
+**Decide:** keep that, drop the command, or add an early-lock function to the app (upstream) first.

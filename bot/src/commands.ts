@@ -1,3 +1,4 @@
+import { relativeDay } from "../../src/lib/time";
 import type { Feature } from "./config";
 import type { Data, Practice } from "./data/types";
 import * as f from "./format";
@@ -107,6 +108,16 @@ export class Commands {
         return this.write(() => this.signUp(cmd.practice, cmd.lists, req));
       case "out":
         return this.write(() => this.dropOut(cmd.practice, cmd.lists, cmd.confirm, req));
+      case "open":
+        return this.write(() => this.open(cmd.practice, req));
+      case "lock":
+        return this.lock(cmd.practice, req);
+      case "cancel":
+        return this.write(() => this.cancel(cmd.practice, cmd.reason, cmd.confirm, req));
+      case "add":
+        return this.write(() => this.add(cmd.practice, cmd.rest, req));
+      case "teams":
+        return this.write(() => this.teams(cmd.practice, req));
       default:
         return reply(`Sorry, I didn't get that.\n\n${this.help(req.asker, true)}`);
     }
@@ -249,6 +260,103 @@ export class Commands {
     const names = r.dropped.map((d) => `*${d.list}*`).join(" and ");
     const tail = r.dropped.some((d) => d.late) ? " The list had locked, so the board was told." : r.dropped.some((d) => d.spot === "main") ? " Your spot went to the next person on the waitlist, if there was one." : "";
     return reply(`Done: you're off ${names} for ${f.day(p)}.${tail}`);
+  }
+
+  // Phase 4: running a practice (board) -------------------------------------------
+
+  /** The board member and practice for a board command, or a message saying why not. */
+  private async boardTarget(selector: string, req: Request): Promise<{ who: Asker; p: Practice } | Out[]> {
+    const who = this.needBoard(req.asker);
+    if (typeof who === "string") return reply(who);
+    const p = await this.find(selector);
+    if (typeof p === "string") return reply(p);
+    return { who, p };
+  }
+
+  /** The app's "Open sign-ups" button (open_event). */
+  private async open(selector: string, req: Request): Promise<Out[]> {
+    const t = await this.boardTarget(selector, req);
+    if (Array.isArray(t)) return t;
+    const { p } = t;
+    if (p.stage === "cancelled" || p.stage === "past") return reply(`${f.day(p)} is ${p.stage === "past" ? "over" : "cancelled"}.`);
+    if (p.stage !== "soon" && p.stage !== "waiting") return reply(`Sign-ups for ${f.day(p)} are already open.`);
+    await this.deps.data.openEvent(p.event.id);
+    const post = this.deps.features.has("post") ? ` Post the link with \`!list post ${selector}\`.` : "";
+    return reply(`Sign-ups for ${f.day(p)} are open.${post}`);
+  }
+
+  /** The app has no lock button: a list locks on its own 2 hours before its first list starts. */
+  private async lock(selector: string, req: Request): Promise<Out[]> {
+    const t = await this.boardTarget(selector, req);
+    if (Array.isArray(t)) return t;
+    const { p } = t;
+    if (["locked", "teams", "past"].includes(p.stage)) return reply(`${f.day(p)} is already locked.`);
+    return reply(`There's no early lock yet: ${f.day(p)} locks on its own ${relativeDay(p.event.locks_at, this.now)}, 2 hours before the first list starts.`);
+  }
+
+  /** cancel_event, after a "yes" from the same board member in the same chat. */
+  private async cancel(selector: string, reason: string, confirm: boolean, req: Request): Promise<Out[]> {
+    const t = await this.boardTarget(selector, req);
+    if (Array.isArray(t)) return t;
+    const { who, p } = t;
+    if (p.stage === "cancelled") return reply(`${f.day(p)} is already cancelled.`);
+    if (p.stage === "past") return reply(`${f.day(p)} is over.`);
+    const key = `${req.chatKey}|cancel|${p.event.id}`;
+    const now = this.now.getTime();
+    if (!confirm) {
+      this.pending.set(key, reason, now);
+      const count = new Set(p.lists.flatMap((l) => [...l.main, ...l.waitlist].map((s) => s.member_id))).size;
+      const why = reason ? ` Reason: "${reason}".` : "";
+      return reply(`Cancel ${f.day(p)}? Everyone on it (${f.players(count)}) gets an email.${why}\nSend \`!list cancel ${selector} yes\` within 10 minutes to confirm.`);
+    }
+    const saved = this.pending.take(key, now);
+    const n = await this.deps.data.cancelEvent(p.event.id, (reason || saved || "").slice(0, 300), who.board!.id);
+    return reply(n ? `${f.day(p)} is cancelled. Emailing ${f.players(n)}.` : `${f.day(p)} is cancelled. Nobody was signed up, so no emails went out.`);
+  }
+
+  /** add_signup for a walk-in: "Jane Doe [list] [waitlist]". */
+  private async add(selector: string, rest: string, req: Request): Promise<Out[]> {
+    const t = await this.boardTarget(selector, req);
+    if (Array.isArray(t)) return t;
+    const { who, p } = t;
+    if (p.stage === "cancelled" || p.stage === "past") return reply(`${f.day(p)} is ${p.stage === "past" ? "over" : "cancelled"}.`);
+
+    let words = rest.trim().split(/\s+/).filter(Boolean);
+    let spot: "main" | "waitlist" = "main";
+    if (words.length && /^(waitlist|waiting|wl)$/i.test(words.at(-1)!)) {
+      spot = "waitlist";
+      words = words.slice(0, -1);
+    }
+    let list = p.lists.length === 1 ? p.lists[0] : null;
+    const named = [...p.lists]
+      .sort((a, b) => b.name.length - a.name.length)
+      .find((l) => words.join(" ").toLowerCase().endsWith(` ${l.name.toLowerCase()}`));
+    if (named) {
+      list = named;
+      words = words.slice(0, words.length - named.name.split(/\s+/).length);
+    }
+    const name = words.join(" ");
+    if (name.length < 2) return reply(`Who should I add? \`!list add ${selector} Jane Doe${p.lists.length > 1 ? ` ${p.lists[0].name.toLowerCase()}` : ""}\` (add \`waitlist\` for the waitlist).`);
+    if (name.length > 80) return reply("That name is too long.");
+    if (!list) return reply(`Which list? ${f.listChoices(p)}. Send \`!list add ${selector} ${name} ${p.lists[0].name.toLowerCase()}\`.`);
+
+    const r = await this.deps.data.addSignup(list.id, name, spot, who.board!.id);
+    const where = r.spot === "main" ? "the main list" : "the waitlist";
+    const over = r.spot === "main" && list.main.length + 1 > list.cap ? ` That's ${list.main.length + 1} of ${list.cap}.` : "";
+    return reply(`Added *${name}* to ${where} for *${list.name}*, ${f.day(p)}.${over}`);
+  }
+
+  /** shuffle_teams, then the draft teams. Sending them stays in the app. */
+  private async teams(selector: string, req: Request): Promise<Out[]> {
+    const t = await this.boardTarget(selector, req);
+    if (Array.isArray(t)) return t;
+    const { p } = t;
+    if (!p.lists.some((l) => l.makes_teams)) return reply(`${f.day(p)} has no list that makes teams.`);
+    if (p.stage === "cancelled" || p.stage === "past") return reply(`${f.day(p)} is ${p.stage === "past" ? "over" : "cancelled"}.`);
+    if (!p.lists.some((l) => l.makes_teams && l.main.length > 0)) return reply("Nobody's on the list yet.");
+    await this.deps.data.shuffleTeams(p.event.id);
+    const fresh = await this.deps.data.practice(p.event.id, this.now);
+    return reply(`${f.teamsText(fresh!)}\n\n_Shuffled, not sent yet._ Tweak and send them in the app: ${this.deps.siteUrl}/admin/p/${p.event.slug}/teams`);
   }
 
   /** Why nobody can sign up for this practice right now, or null if they can. */
