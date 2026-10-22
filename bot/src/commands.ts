@@ -5,6 +5,7 @@ import type { Asker } from "./identity";
 import type { Command } from "./parse";
 import { linkUrl } from "./phone";
 import { pickPractice } from "./pick";
+import { sharePost } from "./share";
 
 // Runs a parsed command for someone. Every permission check lives here, so a
 // command picked by Gemini (ai.ts) gets exactly the same checks as a typed one.
@@ -66,6 +67,8 @@ export class Commands {
         return this.details(cmd.practice);
       case "me":
         return this.me(req);
+      case "post":
+        return this.post(cmd.practice, req);
       default:
         return reply(`Sorry, I didn't get that.\n\n${this.help(req.asker, true)}`);
     }
@@ -125,6 +128,24 @@ export class Commands {
     return reply(lines.length ? `*Your spots*\n${lines.join("\n")}` : "You're not on any upcoming list.");
   }
 
+  // Phase 2: the board's sign-up post ----------------------------------------------
+
+  private async post(selector: string, req: Request): Promise<Out[]> {
+    const who = this.needBoard(req.asker);
+    if (typeof who === "string") return reply(who);
+    if (!this.deps.dropLinkSecret) return reply("I can't make sign-up links: DROP_LINK_SECRET isn't set on the bot.");
+    const p = await this.find(selector);
+    if (typeof p === "string") return reply(p);
+    if (p.stage === "cancelled") return reply(`${f.day(p)} is cancelled, so there's nothing to post.`);
+    if (p.stage === "past") return reply(`${f.day(p)} is over.`);
+    const out: Out[] = [{ text: sharePost(this.deps.dropLinkSecret, this.deps.siteUrl, p.event, p.lists), quote: false }];
+    if (p.stage === "waiting") {
+      const how = this.deps.features.has("board") ? ` Open them with \`!list open ${selector}\`.` : " Open them in the app.";
+      out.push({ text: `Heads-up: sign-ups for ${f.day(p)} aren't open yet, so the link shows "opens soon".${how}`, quote: true });
+    }
+    return out;
+  }
+
   // Helpers -----------------------------------------------------------------------
 
   /** The practice a selector means, or a message saying why there isn't one. */
@@ -132,6 +153,13 @@ export class Commands {
     if (!selector) return "Which practice? Add a day, like `thu`, `next` or `10/23`.";
     const p = pickPractice(selector, await this.deps.data.upcoming(this.now, 14), this.now);
     return p ?? `I can't find a practice for "${selector}". Send \`!list\` to see what's coming up.`;
+  }
+
+  /** The asker if they're on the board, or why not. */
+  needBoard(asker: Asker | null): Asker | string {
+    const who = this.needMember(asker);
+    if (typeof who === "string") return who;
+    return who.board ? who : "Only the board can do that.";
   }
 
   /** The asker, or the message telling an unknown sender how to link. */
