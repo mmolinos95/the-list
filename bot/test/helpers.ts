@@ -16,7 +16,8 @@ export function dataFor(db: Db): Data {
 
 /**
  * A practice relative to now, like tests/db/harness.ts makeEvent, but with
- * list times and a readable slug. Defaults: open, starts in a day, one list.
+ * list times and a real-style slug (2026-10-23-fri, -2, ...) that `!list` accepts,
+ * so tests can name their own practice. Defaults: open, starts in a day, one list.
  */
 export async function practice(
   db: Db,
@@ -34,7 +35,9 @@ export async function practice(
   const ev = (
     await db.query<{ id: string; slug: string; starts_at: string }>(
       `insert into events (title, location, slug, starts_at, ends_at, opens_at, locks_at)
-       values ($3, 'Riverside Park', 'test-' || gen_random_uuid(), ${start}, ${start} + interval '2 hours',
+       values ($3, 'Riverside Park',
+               _unique_slug(to_char((${start}) at time zone 'America/New_York', 'YYYY-MM-DD') || '-' || lower(to_char((${start}) at time zone 'America/New_York', 'Dy'))),
+               ${start}, ${start} + interval '2 hours',
                case when $2::text is null then null else now() + $2::interval end, now())
        returning id, slug, starts_at`,
       [opts.startsAt ?? opts.startsIn ?? "1 day", opensIn, opts.title ?? "Thursday practice"],

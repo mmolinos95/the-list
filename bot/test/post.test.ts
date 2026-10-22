@@ -35,7 +35,7 @@ describe("!list post (phase 2)", () => {
     const out = await run(`post ${openDay}`, "pres@example.com");
     expect(out).toHaveLength(1);
     expect(out[0].quote).toBe(false);
-    expect(out[0].text).toMatch(/^List Sign Up: \d+\/\d+ \w+day Practice\nSkills: \d\d:\d\d - \d\d:\d\d \(40 players\)\nGames: \d\d:\d\d - \d\d:\d\d \(32 players\)\nLocation: Riverside Park\nSign up: https:\/\/list\.example\/p\/test-[\w-]+\?k=[\w-]{16}$/);
+    expect(out[0].text).toMatch(/^List Sign Up: \d+\/\d+ \w+day Practice\nSkills: \d\d:\d\d - \d\d:\d\d \(40 players\)\nGames: \d\d:\d\d - \d\d:\d\d \(32 players\)\nLocation: Riverside Park\nSign up: https:\/\/list\.example\/p\/\d{4}-\d\d-\d\d-[a-z]{3}\?k=[\w-]{16}$/);
     expect(out[0].text).toContain(`?k=${signupKey("test-secret", open.slug)}`);
   });
 
