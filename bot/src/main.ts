@@ -19,6 +19,8 @@ const app = buildApp(config);
 const log = (msg: string, err?: unknown) => (err ? console.error(`[${new Date().toISOString()}] ${msg}`, err) : console.log(`[${new Date().toISOString()}] ${msg}`));
 
 if (config.allowedGroups.length === 0) log("ALLOWED_GROUPS is empty, so the bot will only answer linking DMs.");
+if (config.features.has("ai") && !config.geminiApiKey) log("BOT_FEATURES has ai but GEMINI_API_KEY is empty, so free questions get the help text.");
+if (config.features.size > 1 && !config.dropLinkSecret) log("DROP_LINK_SECRET is empty: no !list post, and emails from bot writes wait for the app's daily job.");
 log(`Features: ${[...config.features].join(", ")}. Groups: ${config.allowedGroups.join(", ") || "(none)"}.`);
 
 let bot: Bot;

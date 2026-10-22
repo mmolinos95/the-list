@@ -1,4 +1,5 @@
 import { relativeDay } from "../../src/lib/time";
+import { ask, type AiModel } from "./ai";
 import type { Feature } from "./config";
 import type { Data, Practice } from "./data/types";
 import * as f from "./format";
@@ -20,6 +21,8 @@ export type CommandDeps = {
   siteUrl: string;
   dropLinkSecret: string | null;
   now: () => Date;
+  /** Gemini (gemini.ts), for free-text questions. */
+  ai?: AiModel;
   /** Called after any write, to send the emails it queued (outbox.ts). */
   afterWrite?: () => void;
 };
@@ -118,6 +121,8 @@ export class Commands {
         return this.write(() => this.add(cmd.practice, cmd.rest, req));
       case "teams":
         return this.write(() => this.teams(cmd.practice, req));
+      case "free":
+        return this.free(cmd.text, req);
       default:
         return reply(`Sorry, I didn't get that.\n\n${this.help(req.asker, true)}`);
     }
@@ -260,6 +265,18 @@ export class Commands {
     const names = r.dropped.map((d) => `*${d.list}*`).join(" and ");
     const tail = r.dropped.some((d) => d.late) ? " The list had locked, so the board was told." : r.dropped.some((d) => d.spot === "main") ? " Your spot went to the next person on the waitlist, if there was one." : "";
     return reply(`Done: you're off ${names} for ${f.day(p)}.${tail}`);
+  }
+
+  // Phase 5: free-text questions (Gemini) -----------------------------------------
+
+  private async free(text: string, req: Request): Promise<Out[]> {
+    if (!this.deps.ai) return reply(`Sorry, I didn't get that.\n\n${this.help(req.asker, true)}`);
+    const practices = await this.deps.data.upcoming(this.now, 14);
+    const r = await ask(this.deps.ai, text, practices, req.asker, this.deps.features, this.now);
+    if (r.kind === "text") return reply(r.text);
+    // The same door as a typed command, so the same checks. Never back into Gemini.
+    if (r.command.kind === "free") return reply("Sorry, I didn't get that. Try `!list help`.");
+    return this.run(r.command, req);
   }
 
   // Phase 4: running a practice (board) -------------------------------------------

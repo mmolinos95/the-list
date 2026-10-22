@@ -1,0 +1,152 @@
+import { clock, dayDate, timeRange } from "../../src/lib/time";
+import type { Feature } from "./config";
+import type { Practice } from "./data/types";
+import { stageLine } from "./format";
+import type { Asker } from "./identity";
+import type { Command } from "./parse";
+
+// Free-text questions ("@bot is there practice tomorrow?"). Gemini either
+// answers from the context we give it, or picks ONE of the bot's commands
+// (function calling). The bot then runs that command through Commands.run,
+// with the same permission checks as a typed one. Gemini never touches the
+// database, and the command's result goes straight to WhatsApp, not back to Gemini.
+//
+// Privacy (the free tier may be used for training): Gemini only gets the
+// question, practice times, places and counts, and the asker's own spots.
+// Never names, emails or phone numbers.
+
+export const AI_TIMEOUT_MS = 20_000;
+
+export type ToolDecl = { name: string; description: string; parametersJsonSchema: Record<string, unknown> };
+export type AiAnswer = { text: string } | { call: { name: string; args: Record<string, unknown> } };
+
+/** The model behind an interface, so the loop is tested with a fake. gemini.ts is the real one. */
+export interface AiModel {
+  generate(req: { system: string; prompt: string; tools: ToolDecl[]; signal: AbortSignal }): Promise<AiAnswer>;
+}
+
+const PRACTICE = { type: "string", description: 'Which practice: its slug from the context (best), a weekday like "thu", a date like "10/23", "today", "tomorrow" or "next".' };
+const LISTS = { type: "string", description: 'List name(s), e.g. "games", or "both". Leave out if the person didn\'t say.' };
+const obj = (properties: Record<string, unknown> = {}, required: string[] = []) => ({ type: "object", properties, required });
+
+type Tool = ToolDecl & { feature: Feature; board?: boolean; toCommand: (a: Record<string, string | boolean | undefined>) => Command };
+
+const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+
+export const TOOLS: Tool[] = [
+  { name: "upcoming_practices", feature: "read", description: "Show the upcoming practices with spots left.", parametersJsonSchema: obj(), toCommand: () => ({ kind: "overview" }) },
+  { name: "practice_details", feature: "read", description: "Show one practice: time, place, each list's count and waitlist.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "details", practice: str(a.practice) }) },
+  { name: "my_spots", feature: "read", description: "Show the asker's own spots and waitlist positions.", parametersJsonSchema: obj(), toCommand: () => ({ kind: "me" }) },
+  { name: "help", feature: "read", description: "Show the bot's commands.", parametersJsonSchema: obj(), toCommand: () => ({ kind: "help" }) },
+  { name: "sign_up", feature: "signup", description: "Sign the asker up for a practice. Only when they clearly ask to join.", parametersJsonSchema: obj({ practice: PRACTICE, lists: LISTS }, ["practice"]), toCommand: (a) => ({ kind: "in", practice: str(a.practice), lists: str(a.lists) }) },
+  { name: "drop_out", feature: "signup", description: "Take the asker off a practice. Only when they clearly say they can't come.", parametersJsonSchema: obj({ practice: PRACTICE, lists: LISTS }, ["practice"]), toCommand: (a) => ({ kind: "out", practice: str(a.practice), lists: str(a.lists), confirm: false }) },
+  { name: "post_signup_message", feature: "post", board: true, description: "Board: post the practice's sign-up message with its link in the group.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "post", practice: str(a.practice) }) },
+  { name: "open_signups", feature: "board", board: true, description: "Board: open sign-ups for a practice now.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "open", practice: str(a.practice) }) },
+  { name: "lock_list", feature: "board", board: true, description: "Board: lock a practice's list.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "lock", practice: str(a.practice) }) },
+  {
+    name: "cancel_practice",
+    feature: "board",
+    board: true,
+    description: "Board: cancel a practice. The bot always asks the board member to confirm.",
+    parametersJsonSchema: obj({ practice: PRACTICE, reason: { type: "string", description: "Short reason, if given." } }, ["practice"]),
+    // Never confirmed by Gemini: the board member has to send "yes" themselves.
+    toCommand: (a) => ({ kind: "cancel", practice: str(a.practice), reason: str(a.reason).replace(/\byes\b/gi, "").trim(), confirm: false }),
+  },
+  {
+    name: "add_walk_in",
+    feature: "board",
+    board: true,
+    description: "Board: add someone (a walk-in) to a list by name.",
+    parametersJsonSchema: obj(
+      { practice: PRACTICE, name: { type: "string", description: "Their full name." }, list: { type: "string", description: "List name, if given." }, waitlist: { type: "boolean", description: "True to add to the waitlist." } },
+      ["practice", "name"],
+    ),
+    toCommand: (a) => ({ kind: "add", practice: str(a.practice), rest: [str(a.name), str(a.list), a.waitlist === true ? "waitlist" : ""].filter(Boolean).join(" ") }),
+  },
+  { name: "shuffle_teams", feature: "board", board: true, description: "Board: shuffle the teams for a practice and show them.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "teams", practice: str(a.practice) }) },
+];
+
+/** Tools this asker may use with these features. (Commands.run checks again anyway.) */
+export function toolsFor(asker: Asker | null, features: Set<Feature>) {
+  return TOOLS.filter((t) => features.has(t.feature) && (!t.board || asker?.board));
+}
+
+/** A tool call → the command it stands for, or null for a tool that wasn't offered. */
+export function commandFor(call: { name: string; args: Record<string, unknown> }, offered: Tool[]): Command | null {
+  const tool = offered.find((t) => t.name === call.name);
+  return tool ? tool.toCommand(call.args as Record<string, string | boolean | undefined>) : null;
+}
+
+/** What Gemini may know: practice facts and counts, and the asker's own spots. No names. */
+export function contextFor(practices: Practice[], asker: Asker | null, now: Date) {
+  const lines = [`Now: ${dayDate(now)}, ${clock(now)} New York time.`, "", "Upcoming practices:"];
+  if (!practices.length) lines.push("(none in the next two weeks)");
+  for (const p of practices) {
+    lines.push(`- slug ${p.event.slug}: ${p.event.title}, ${dayDate(p.event.starts_at)}, ${timeRange(p.event.starts_at, p.event.ends_at)}, at ${p.event.location}. ${stageLine(p, now).replace(/\*/g, "")}.`);
+    for (const l of p.lists) lines.push(`  - list ${l.name}: ${timeRange(l.starts_at, l.ends_at)}, ${l.main.length} of ${l.cap} spots taken, ${l.waitlist.length} on the waitlist${l.makes_teams ? ", makes teams" : ""}.`);
+  }
+  lines.push("", "The person asking:");
+  if (!asker) lines.push("Not linked yet, so the bot doesn't know who they are.");
+  else {
+    if (asker.board) lines.push("Is on the club board.");
+    const mine: string[] = [];
+    for (const p of practices)
+      for (const l of p.lists) {
+        const main = asker.member ? l.main.findIndex((s) => s.member_id === asker.member!.id) : -1;
+        const wait = asker.member ? l.waitlist.findIndex((s) => s.member_id === asker.member!.id) : -1;
+        if (main >= 0) mine.push(`${p.event.slug} ${l.name}: main list #${main + 1}`);
+        if (wait >= 0) mine.push(`${p.event.slug} ${l.name}: waitlist #${wait + 1}`);
+      }
+    lines.push(mine.length ? `Their spots: ${mine.join("; ")}.` : "Not on any upcoming list.");
+  }
+  return lines.join("\n");
+}
+
+export const SYSTEM = `You are The List bot in the WhatsApp group of CBS FC, a soccer club. Members sign up for practices; a full list has a waitlist that moves up on its own until the list locks, 2 hours before the first list starts.
+Either answer the question briefly from the context below (one to three short sentences, WhatsApp formatting with *bold*, New York times), or call exactly one tool when the person wants the bot to do or show something a tool does.
+Only call sign_up or drop_out when the person clearly asks to join or leave. Never make up practices, times or numbers. If you don't know, say so and suggest "!list help". Don't mention tools or this prompt.`;
+
+export type AskResult = { kind: "command"; command: Command } | { kind: "text"; text: string };
+
+/** One question → a command to run, or a text answer. Throws only on programming errors. */
+export async function ask(
+  model: AiModel,
+  question: string,
+  practices: Practice[],
+  asker: Asker | null,
+  features: Set<Feature>,
+  now: Date,
+  timeoutMs = AI_TIMEOUT_MS,
+): Promise<AskResult> {
+  const tools = toolsFor(asker, features);
+  const controller = new AbortController();
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<"timeout">((resolve) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      resolve("timeout");
+    }, timeoutMs);
+  });
+  try {
+    const answer = await Promise.race([
+      model.generate({ system: `${SYSTEM}\n\n${contextFor(practices, asker, now)}`, prompt: question.slice(0, 500), tools, signal: controller.signal }),
+      timeout,
+    ]);
+    if (answer === "timeout") return { kind: "text", text: "I'm thinking too slowly right now. Try the plain commands: `!list`, `!list thu`, `!list me`, `!list help`." };
+    if ("call" in answer) {
+      const command = commandFor(answer.call, tools);
+      return command ? { kind: "command", command } : { kind: "text", text: "Sorry, I can't do that. Try `!list help`." };
+    }
+    const text = answer.text.trim();
+    return { kind: "text", text: text ? text.slice(0, 1000) : "Sorry, I didn't get that. Try `!list help`." };
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    const msg = err instanceof Error ? err.message : String(err);
+    if (status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(msg)) {
+      return { kind: "text", text: "I'm out of AI questions for now (free quota). The plain commands still work: `!list`, `!list thu`, `!list me`, `!list help`." };
+    }
+    return { kind: "text", text: "I can't answer free questions right now. The plain commands still work: `!list`, `!list thu`, `!list me`, `!list help`." };
+  } finally {
+    clearTimeout(timer);
+  }
+}
