@@ -17,10 +17,10 @@ Every command is `!` plus a word, in any case. Messages starting with `!` that a
 | `read` | Anyone | `!week` | Upcoming practices with spots left |
 | `read` | Member | `!me` | Your spots and waitlist positions |
 | `read` | Anyone | `!help` | The commands (board ones only for the board) |
-| `post` | Board | `!post thu` | Posts the practice. With `signup` on, it tells people to sign up right in the chat (`!in thu`) and adds the web link only as a fallback. Without it, it's the app's **Copy WhatsApp post** text with the signed link |
-| `signup` | Member | `!in thu [list]` | Signs you up (asks which list if there are several; `both` works) |
-| `signup` | Member | `!out thu [list]` | Drops you (asks first if it would be a late drop). Whoever moves up is told in the same reply |
-| `board` | Board | `!open thu` | Opens sign-ups now (the app's **Open sign-ups** button) |
+| `post` | Board | `!post [thu]` | Posts the practice (no day: the open one). With `signup` on, it tells people to sign up right in the chat (`!in thu`) and adds the web link only as a fallback. Without it, it's the app's **Copy WhatsApp post** text with the signed link |
+| `signup` | Member | `!in [thu] [list]` | Signs you up (asks which list if there are several; `both` works). No day: the practice that's open |
+| `signup` | Member | `!out [thu] [list]` | Drops you (no day: the next practice you're on; asks first if it would be a late drop). Whoever moves up is told in the same reply |
+| `board` | Board | `!open [thu]` | Opens sign-ups now (the app's **Open sign-ups** button). No day: the next practice that isn't open yet |
 | `board` | Board | `!cancel thu [reason]` | Asks to confirm, then `!cancel thu yes` cancels and posts one notice in the group |
 | `board` | Board | `!add thu Name [list] [waitlist]` | Adds a walk-in |
 | `board` | Board | `!teams thu` | Shuffles teams and shows them. Send them from the app |

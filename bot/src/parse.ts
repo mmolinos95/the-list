@@ -92,9 +92,13 @@ export function parseCommand(body: string): Command {
 
   // A command with no practice still counts; the handler asks which (or, for !list, takes the next).
   const split = splitSelector(rest);
-  if (!split && rest) return { kind: "free", text };
+  // !in and !out work without a day ("!in games", "!out yes"): the handler picks the
+  // practice. Only a word or two (list names, "both", "yes"), so a sentence like
+  // "out of curiosity, who's coming?" stays a question.
+  const shortTail = /^[\p{L}]+(\s+[\p{L}]+)?$/u.test(rest);
+  if (!split && rest && !((kind === "in" || kind === "out") && shortTail)) return { kind: "free", text };
   const practice = split?.selector ?? "";
-  const after = split?.rest ?? "";
+  const after = split ? split.rest : rest;
   switch (kind) {
     case "in":
       return { kind, practice, lists: after };

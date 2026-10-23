@@ -56,6 +56,17 @@ describe("parseCommand", () => {
     expect(parseCommand("open thu")).toEqual({ kind: "open", practice: "thu" });
   });
 
+  it("lets !in and !out skip the day, with a list name, both or yes", () => {
+    expect(parseCommand("in")).toEqual({ kind: "in", practice: "", lists: "" });
+    expect(parseCommand("in games")).toEqual({ kind: "in", practice: "", lists: "games" });
+    expect(parseCommand("in both")).toEqual({ kind: "in", practice: "", lists: "both" });
+    expect(parseCommand("out")).toEqual({ kind: "out", practice: "", lists: "", confirm: false });
+    expect(parseCommand("out yes")).toEqual({ kind: "out", practice: "", lists: "", confirm: true });
+    expect(parseCommand("out games yes")).toEqual({ kind: "out", practice: "", lists: "games", confirm: true });
+    expect(parseCommand("post")).toEqual({ kind: "post", practice: "" });
+    expect(parseCommand("open")).toEqual({ kind: "open", practice: "" });
+  });
+
   it("keeps a command with no practice, so the bot can ask which", () => {
     expect(parseCommand("in")).toEqual({ kind: "in", practice: "", lists: "" });
   });

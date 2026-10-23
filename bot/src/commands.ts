@@ -71,6 +71,9 @@ class Pending {
   }
 }
 
+/** A practice whose sign-ups haven't opened yet. */
+const isNotOpenYet = (p: Practice) => p.stage === "soon" || p.stage === "waiting";
+
 /** The feature each command needs. */
 export const FEATURE_OF: Record<Command["kind"], Feature> = {
   week: "read",
@@ -144,7 +147,7 @@ export class Commands {
     const has = (x: Feature) => this.deps.features.has(x);
     if (short) {
       const bits = ["`!list thu` who's in", "`!me` your spots"];
-      if (has("signup")) bits.push("`!in thu` / `!out thu`");
+      if (has("signup")) bits.push("`!in` / `!out`");
       if (has("ai")) bits.push("or @mention me with a question");
       return `${bits.join(" · ")} · \`!help\``;
     }
@@ -155,14 +158,14 @@ export class Commands {
       "`!week` upcoming practices",
       "`!me` your spots",
     ];
-    if (has("signup")) lines.push("`!in thu [list]` sign up", "`!out thu [list]` drop out");
+    if (has("signup")) lines.push("`!in` sign up for the open practice (or `!in thu [list]`)", "`!out` drop out (or `!out thu [list]`)");
     if (has("ai")) lines.push("Or @mention me with a question.");
     if (asker?.board && (has("post") || has("board"))) {
       lines.push("", "*Board*");
-      if (has("post")) lines.push("`!post thu` post the practice");
+      if (has("post")) lines.push("`!post` post the open practice (or `!post thu`)");
       if (has("board"))
         lines.push(
-          "`!open thu` open sign-ups now",
+          "`!open` open the next practice's sign-ups now (or `!open thu`)",
           "`!cancel thu [reason]` cancel (asks to confirm)",
           "`!add thu Name [list] [waitlist]` add a walk-in",
           "`!teams thu` shuffle teams",
@@ -211,8 +214,9 @@ export class Commands {
     // just a fallback; without them, it's the app's post, which needs the link.
     const inChat = this.deps.features.has("signup");
     if (!inChat && !this.deps.dropLinkSecret) return reply("I can't make sign-up links: DROP_LINK_SECRET isn't set on the bot.");
-    const p = await this.find(selector);
+    const p = await this.findOr(selector, (x) => x.stage === "open" || isNotOpenYet(x), "There's no upcoming practice to post.");
     if (typeof p === "string") return reply(p);
+    const sel = selector || selectorFor(p.event.starts_at, this.now);
     if (p.stage === "cancelled") return reply(`${f.day(p)} is cancelled, so there's nothing to post.`);
     if (p.stage === "past") return reply(`${f.day(p)} is over.`);
     const secret = this.deps.dropLinkSecret;
@@ -221,7 +225,7 @@ export class Commands {
       : sharePost(secret!, this.deps.siteUrl, p.event, p.lists);
     const out: Out[] = [{ text, quote: false }];
     if (p.stage === "waiting") {
-      const how = this.deps.features.has("board") ? ` Open them with \`!open ${selector}\`.` : " Open them in the app.";
+      const how = this.deps.features.has("board") ? ` Open them with \`!open ${sel}\`.` : " Open them in the app.";
       const what = inChat ? "`!in` won't work until they open" : 'the link shows "opens soon"';
       out.push({ text: `Heads-up: sign-ups for ${f.day(p)} aren't open yet, so ${what}.${how}`, quote: true });
     }
@@ -234,8 +238,9 @@ export class Commands {
     const who = this.needMember(req.asker);
     if (typeof who === "string") return reply(who);
     if (!who.name) return reply("I need your name first. Send me `link` in a DM to set it up.");
-    const p = await this.find(selector);
+    const p = await this.findOr(selector, (x) => x.stage === "open" || isNotOpenYet(x), "There's no upcoming practice to sign up for.");
     if (typeof p === "string") return reply(p);
+    const sel = selector || selectorFor(p.event.starts_at, this.now);
     const closed = this.closedFor(p, "sign up");
     if (closed) return reply(closed);
 
@@ -244,8 +249,8 @@ export class Commands {
       const m = matchLists(listText, p.lists);
       if (m.unknown) return reply(`${f.day(p)} has no list called "${m.unknown}". Pick ${f.listChoices(p)}.`);
       if (m.lists.length === 0) {
-        const names = p.lists.map((l) => `\`!in ${selector} ${l.name.toLowerCase()}\``);
-        return reply(`Which list? ${f.listChoices(p)}.\nSend ${names.join(", ")} or \`!in ${selector} both\`.`);
+        const names = p.lists.map((l) => `\`!in ${sel} ${l.name.toLowerCase()}\``);
+        return reply(`Which list? ${f.listChoices(p)}.\nSend ${names.join(", ")} or \`!in ${sel} both\`.`);
       }
       lists = m.lists;
     }
@@ -264,8 +269,10 @@ export class Commands {
   private async dropOut(selector: string, listText: string, confirm: boolean, req: Request): Promise<Out[]> {
     const who = this.needMember(req.asker);
     if (typeof who === "string") return reply(who);
-    const p = await this.find(selector);
+    const onIt = (x: Practice) => x.stage !== "past" && x.stage !== "cancelled" && x.lists.some((l) => [...l.main, ...l.waitlist].some((s) => s.member_id === who.member?.id));
+    const p = await this.findOr(selector, onIt, "You're not on any upcoming list.");
     if (typeof p === "string") return reply(p);
+    const sel = selector || selectorFor(p.event.starts_at, this.now);
     if (p.stage === "cancelled") return reply(`${f.day(p)} is cancelled, so there's nothing to drop.`);
     if (p.stage === "past") return reply(`${f.day(p)} is over.`);
 
@@ -284,7 +291,7 @@ export class Commands {
     const key = `${req.chatKey}|out|${p.event.id}`;
     if (late && !(confirm || this.pending.take(key, this.now.getTime()))) {
       this.pending.set(key, "yes", this.now.getTime());
-      const cmd = `!out ${selector}${listText ? ` ${listText}` : ""} yes`;
+      const cmd = `!out ${sel}${listText ? ` ${listText}` : ""} yes`;
       return reply(`The list has locked, so this counts as a late drop. Still drop? Send \`${cmd}\`.`);
     }
 
@@ -320,13 +327,15 @@ export class Commands {
 
   /** The app's "Open sign-ups" button (open_event). */
   private async open(selector: string, req: Request): Promise<Out[]> {
-    const t = await this.boardTarget(selector, req);
-    if (Array.isArray(t)) return t;
-    const { p } = t;
+    const who = this.needBoard(req.asker);
+    if (typeof who === "string") return reply(who);
+    const p = await this.findOr(selector, isNotOpenYet, "Every upcoming practice is already open.");
+    if (typeof p === "string") return reply(p);
+    const sel = selector || selectorFor(p.event.starts_at, this.now);
     if (p.stage === "cancelled" || p.stage === "past") return reply(`${f.day(p)} is ${p.stage === "past" ? "over" : "cancelled"}.`);
     if (p.stage !== "soon" && p.stage !== "waiting") return reply(`Sign-ups for ${f.day(p)} are already open.`);
     await this.deps.data.openEvent(p.event.id);
-    const post = this.deps.features.has("post") ? ` Post it with \`!post ${selector}\`.` : "";
+    const post = this.deps.features.has("post") ? ` Post it with \`!post ${sel}\`.` : "";
     return reply(`Sign-ups for ${f.day(p)} are open.${post}`);
   }
 
@@ -441,6 +450,16 @@ export class Commands {
   }
 
   // Helpers -----------------------------------------------------------------------
+
+  /**
+   * The practice a selector means or, with no selector, the first upcoming one
+   * `pick` accepts (`none` says why there isn't one). Most weeks only one
+   * practice is open, so "!in" alone just works.
+   */
+  async findOr(selector: string, pick: (p: Practice) => boolean, none: string): Promise<Practice | string> {
+    if (selector) return this.find(selector);
+    return (await this.deps.data.upcoming(this.now, 14)).find(pick) ?? none;
+  }
 
   /** The practice a selector means, or a message saying why there isn't one. */
   async find(selector: string): Promise<Practice | string> {
