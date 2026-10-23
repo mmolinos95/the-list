@@ -21,7 +21,7 @@ This repo is a fork of `cbs-futbol-club/cbs-futbol-club-app` (remote `upstream`)
 - **Baileys** (`@whiskeysockets/baileys`, latest stable) for WhatsApp, logged in as a linked device of the bot's WhatsApp Business account (a Google Voice number). Log in with a **pairing code** (`requestPairingCode`), not a QR, so it can be done from a terminal: `npm run link` prints an 8-character code that Martin types on the phone. The auth state dir is gitignored.
 - **Supabase** with `@supabase/supabase-js` and the secret key, calling the existing functions via `rpc()` and reading tables directly.
 - **Gemini** with `@google/genai`, free tier. Check Google's docs for the current free Flash model name; don't hardcode an old one.
-- **Email** with `nodemailer` + the club Gmail (same as the app), **only for the 6-digit linking code**. Every notification about practices goes to WhatsApp (see Notifications). With no Gmail settings, print emails to the terminal, the way the app does in development.
+- **Email** with `nodemailer` + the club Gmail (same as the app), **only for the 6-digit linking code** and, since R2, down alerts to `ALERT_EMAILS`. Every notification about practices goes to WhatsApp (see Notifications). With no Gmail settings, print emails to the terminal, the way the app does in development.
 - Local state (linked WhatsApp IDs, pending link codes, rate limits) in `node:sqlite`, in a file next to the auth state, gitignored. It holds personal data, so it lives only on the VM.
 
 ## How it behaves in WhatsApp (ban safety)
@@ -101,6 +101,7 @@ BOT_PHONE=                 # E.164, the bot's own number (pairing + wa.me links)
 ALLOWED_GROUPS=            # exact group names, comma-separated
 BOT_FEATURES=read          # any of: read,post,signup,board,ai
 DATA_DIR=./data            # auth state + local db
+ALERT_EMAILS=              # R2: who gets an email when the bot is down; empty = no alerts
 ```
 
 ## Testing
@@ -137,6 +138,8 @@ Phases 1–5 are built and tested live in the test group (see [README.md](README
 - Typing indicator while a batch is pending is fine; don't spam presence updates.
 - Tests with fake timers: 40 sign-ups in 30 s produce a handful of list posts (not 40), all names in order, mentions kept, previous lists deleted, and a single change still posts within ~5 s.
 
+**Done (R1).** `src/batch.ts` batches list changes per practice per chat (5 s quiet, 15 s at most); `src/bot.ts` now has a work queue and a separate send queue per chat, so pacing never holds up a write, and "typing…" is reference-counted so a rush keeps it on. The summary is one line per kind (`✅ In`, `⏳ Waitlist`, `❌ Out`, `⬆️ Moved up from the waitlist`) rather than one line joined with " · ", since a rush can name 20 people. Tested with a fake clock in `test/rush.test.ts`: 40 sign-ups and a drop in 30 s make 2 list posts, names in order, the promotion @mentioned, the first list deleted; a lone change posts after 5 s, quoted.
+
 ### R2. Down alert
 
 **Problem.** If WhatsApp disconnects or logs the bot out, nobody notices until members complain.
@@ -148,16 +151,22 @@ Phases 1–5 are built and tested live in the test group (see [README.md](README
 - At most one email per kind per hour, so a flapping connection doesn't flood the inbox. Keep the alert state in memory or `bot.sqlite`, your call.
 - Add `ALERT_EMAILS` to `.env.example`, config, README. Tests with a fake mailer and fake clock.
 
+**Done (R2).** `src/alerts.ts`, hooked into the WhatsApp connection events and `main.ts`. The last send of each kind is kept in `bot.sqlite` (`alert_sends`), so the one-per-hour limit also holds across systemd restarts. Tested with a fake mailer and clock in `test/alerts.test.ts`.
+
 ### R3. `!where` and a club FAQ for Gemini
 
 - **`!where [day]`** (feature `read`): the practice's place and a Google Maps link built from `event.location` (`https://www.google.com/maps/search/?api=1&query=<url-encoded location>`). No day: the next practice. Add it to `!help`, the Gemini tools (`where`), README.
 - **Club FAQ.** A `bot/FAQ.md` that the board fills in, loaded at start and added to Gemini's context. Write it as a **template**: headings and short "(board: fill in)" lines for late-drop policy, what to bring, fees/dues, guests, who to contact, weather cancellations. Only state facts already true in the app (lists lock 2 hours before the first list; the waitlist moves up on its own until the lock; dropping after the lock is a late drop). Don't invent club rules. Gemini must answer club questions only from the FAQ and say "ask the board" when it isn't there. A missing or empty file is fine (no FAQ in the context). Keep the FAQ out of the privacy problem: it's club info, no member data. Test that the FAQ text reaches the prompt and that a missing file doesn't break anything.
+
+**Done (R3).** `!where` (`read`; aliases `!location`, `!map`), in `!help` and as the Gemini tool `where`. `bot/FAQ.md` is the template; `src/faq.ts` loads it at start, leaving out the comment for the board, lines still saying "(board: fill in)" and empty sections, so Gemini only sees real answers plus the "How the list works" facts. `deploy/upload.sh` now ships `FAQ.md`. Tested in `test/where-faq.test.ts`.
 
 ### R4. Wrap-up
 
 - README: update the commands table, the behaviour notes and config for R1–R3.
 - Mark R1–R4 done here, and add anything that needs Martin under "Needs a decision".
 - Push to `origin main`. Summarize what changed and what Martin's local session must do (new `.env` settings, restart, what to test in the group).
+
+**Done (R4).** README updated (commands, batching, ban-safety notes, config, down alerts, FAQ, first live test, handover); open questions below.
 
 ## Order of work
 
@@ -191,3 +200,11 @@ How "caused by the bot's own call" is matched: every row a Postgres function wri
 - **`!list teams thu`** shuffles and shows the draft teams in the group; sending stays in the app — fine as built.
 - **Phone matching skips members without an email** (walk-ins) — fine as built.
 - **Root config:** `tsconfig.json` excludes `bot/` and `eslint.config.mjs` ignores `bot/**`; nothing else outside `bot/` changed — fine as built.
+
+### 6. Round 2 choices (say if you want them different)
+
+- **No personal confirmation after `!in` any more.** The asker's name in the next list post is the confirmation: about 5 s later for a lone sign-up (quoted under their message), up to 15 s in a rush (not quoted). Errors, "which list?" and "you're already on it" are still instant.
+- **Pending list posts are lost if the bot restarts in those 5–15 s.** The sign-ups themselves are saved; only that one list post doesn't go out, and the next change or `!list` shows the right list.
+- **Alert emails name the VM:** they include the `gcloud` commands for `listbot` in `us-east1-b`, as in the README. If the VM ends up with another name or zone, those lines need changing (`src/alerts.ts`).
+- **If `bot.sqlite` itself can't be opened,** the crash alert falls back to an in-memory limit, so a crash loop could send up to 10 emails before systemd stops retrying (10 starts in 10 minutes).
+- **`FAQ.md` is read at start only:** after the board edits it, `upload.sh` (which restarts the bot) puts it live.
