@@ -305,7 +305,7 @@ export class Commands {
     if (p.stage === "cancelled" || p.stage === "past") return reply(`${f.day(p)} is ${p.stage === "past" ? "over" : "cancelled"}.`);
     if (p.stage !== "soon" && p.stage !== "waiting") return reply(`Sign-ups for ${f.day(p)} are already open.`);
     await this.deps.data.openEvent(p.event.id);
-    const post = this.deps.features.has("post") ? ` Post the link with \`!list post ${selector}\`.` : "";
+    const post = this.deps.features.has("post") ? ` Post it with \`!list post ${selector}\`.` : "";
     return reply(`Sign-ups for ${f.day(p)} are open.${post}`);
   }
 

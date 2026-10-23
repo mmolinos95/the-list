@@ -34,7 +34,7 @@ describe("board commands (phase 4)", () => {
 
   it("!list open opens sign-ups now, like the app's button", async () => {
     const ev = await practice(db, { startsIn: "3 days", opensIn: null });
-    expect(await run(`open ${ev.slug}`)).toMatch(/Sign-ups for .* are open\. Post the link with `!list post/);
+    expect(await run(`open ${ev.slug}`)).toMatch(/Sign-ups for .* are open\. Post it with `!list post/);
     expect(await one<{ open: boolean }>(`select opens_at <= now() as open from events where id = $1`, [ev.id])).toEqual({ open: true });
     expect(await run(`open ${ev.slug}`)).toMatch(/already open/);
   });
