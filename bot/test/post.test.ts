@@ -31,12 +31,31 @@ const run = async (text: string, email: string | null, features?: Parameters<typ
   commandsFor(data, features).run(parseCommand(text), { asker: email ? await askerOf(data, email) : null, chatKey: "k" });
 
 describe("!list post (phase 2)", () => {
-  it("posts the app's WhatsApp text with the signed link, as a plain message", async () => {
-    const out = await run(`post ${openDay}`, "pres@example.com");
+  it("without sign-ups in WhatsApp, posts the app's WhatsApp text with the signed link, as a plain message", async () => {
+    const out = await run(`post ${openDay}`, "pres@example.com", ["read", "post"]);
     expect(out).toHaveLength(1);
     expect(out[0].quote).toBe(false);
     expect(out[0].text).toMatch(/^List Sign Up: \d+\/\d+ \w+day Practice\nSkills: \d\d:\d\d - \d\d:\d\d \(40 players\)\nGames: \d\d:\d\d - \d\d:\d\d \(32 players\)\nLocation: Riverside Park\nSign up: https:\/\/list\.example\/p\/\d{4}-\d\d-\d\d-[a-z]{3}\?k=[\w-]{16}$/);
     expect(out[0].text).toContain(`?k=${signupKey("test-secret", open.slug)}`);
+  });
+
+  it("with sign-ups in WhatsApp on, posts the commands first and the link as a fallback", async () => {
+    const out = await run(`post ${openDay}`, "pres@example.com", ["read", "post", "signup"]);
+    expect(out[0].quote).toBe(false);
+    const lines = out[0].text.split("\n");
+    expect(lines[0]).toMatch(/^List Sign Up: \d+\/\d+ \w+day Practice$/);
+    expect(lines).toContain(`*Sign up here:* send \`!list in ${openDay}\``);
+    expect(lines).toContain(`One list only? \`!list in ${openDay} skills\` · Both: \`!list in ${openDay} both\``);
+    expect(lines).toContain(`Drop out: \`!list out ${openDay}\` · Who's in: \`!list ${openDay}\``);
+    expect(lines.at(-1)).toBe(`Or on the web: https://list.example/p/${open.slug}?k=${signupKey("test-secret", open.slug)}`);
+  });
+
+  it("still posts the commands without a link secret, and says when !list in will work", async () => {
+    const cmds = commandsFor(data, ["read", "post", "signup"], { dropLinkSecret: null });
+    const out = await cmds.run(parseCommand(`post ${waitingDay}`), { asker: await askerOf(data, "pres@example.com"), chatKey: "k" });
+    expect(out[0].text).toMatch(/Sign up here/);
+    expect(out[0].text).not.toMatch(/Or on the web/);
+    expect(out[1].text).toMatch(/aren't open yet, so `!list in` won't work until they open/);
   });
 
   it("warns the board when sign-ups aren't open yet", async () => {
@@ -48,7 +67,7 @@ describe("!list post (phase 2)", () => {
     expect((await run(`post ${openDay}`, "ana@example.com"))[0].text).toBe("Only the board can do that.");
     expect((await run(`post ${openDay}`, null))[0].text).toMatch(/don't know your WhatsApp/);
     expect((await run(`post ${openDay}`, "pres@example.com", ["read"]))[0].text).toMatch(/isn't switched on/);
-    const noSecret = await commandsFor(data, undefined, { dropLinkSecret: null }).run(parseCommand(`post ${openDay}`), { asker: await askerOf(data, "pres@example.com"), chatKey: "k" });
+    const noSecret = await commandsFor(data, ["read", "post"], { dropLinkSecret: null }).run(parseCommand(`post ${openDay}`), { asker: await askerOf(data, "pres@example.com"), chatKey: "k" });
     expect(noSecret[0].text).toMatch(/DROP_LINK_SECRET/);
   });
 

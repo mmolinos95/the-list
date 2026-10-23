@@ -14,7 +14,7 @@ Practices can be named loosely: `thu`, `thursday`, `next`, `today`, `tomorrow`, 
 | `read` | Anyone | `!list` / `!list help` | Upcoming practices with spots left; help |
 | `read` | Anyone | `!list thu` | Time, place, each list's count / cap and waitlist |
 | `read` | Member | `!list me` | Your spots and waitlist positions |
-| `post` | Board | `!list post thu` | Posts the app's **Copy WhatsApp post** text with the signed sign-up link |
+| `post` | Board | `!list post thu` | Posts the practice. With `signup` on, it tells people to sign up right in the chat (`!list in thu`) and adds the web link only as a fallback. Without it, it's the app's **Copy WhatsApp post** text with the signed link |
 | `signup` | Member | `!list in thu [list]` | Signs you up (asks which list if there are several; `both` works) |
 | `signup` | Member | `!list out thu [list]` | Drops you (asks first if it would be a late drop). Whoever moves up is told in the same reply |
 | `board` | Board | `!list open thu` | Opens sign-ups now (the app's **Open sign-ups** button) |

@@ -7,7 +7,8 @@ import type { Command } from "./parse";
 import { linkUrl } from "./phone";
 import { matchLists, pickPractice } from "./pick";
 import { addQuietly, cancelQuietly, dropQuietly, signUpQuietly, type Promotion } from "./quiet";
-import { sharePost } from "./share";
+import { signupUrl } from "./links";
+import { chatPost, sharePost } from "./share";
 
 // Runs a parsed command for someone. Every permission check lives here, so a
 // command picked by Gemini (ai.ts) gets exactly the same checks as a typed one.
@@ -185,15 +186,23 @@ export class Commands {
   private async post(selector: string, req: Request): Promise<Out[]> {
     const who = this.needBoard(req.asker);
     if (typeof who === "string") return reply(who);
-    if (!this.deps.dropLinkSecret) return reply("I can't make sign-up links: DROP_LINK_SECRET isn't set on the bot.");
+    // With sign-ups in WhatsApp on, the post is about the commands and the link is
+    // just a fallback; without them, it's the app's post, which needs the link.
+    const inChat = this.deps.features.has("signup");
+    if (!inChat && !this.deps.dropLinkSecret) return reply("I can't make sign-up links: DROP_LINK_SECRET isn't set on the bot.");
     const p = await this.find(selector);
     if (typeof p === "string") return reply(p);
     if (p.stage === "cancelled") return reply(`${f.day(p)} is cancelled, so there's nothing to post.`);
     if (p.stage === "past") return reply(`${f.day(p)} is over.`);
-    const out: Out[] = [{ text: sharePost(this.deps.dropLinkSecret, this.deps.siteUrl, p.event, p.lists), quote: false }];
+    const secret = this.deps.dropLinkSecret;
+    const text = inChat
+      ? chatPost(p.event, p.lists, this.now, secret ? signupUrl(secret, this.deps.siteUrl, p.event) : null)
+      : sharePost(secret!, this.deps.siteUrl, p.event, p.lists);
+    const out: Out[] = [{ text, quote: false }];
     if (p.stage === "waiting") {
       const how = this.deps.features.has("board") ? ` Open them with \`!list open ${selector}\`.` : " Open them in the app.";
-      out.push({ text: `Heads-up: sign-ups for ${f.day(p)} aren't open yet, so the link shows "opens soon".${how}`, quote: true });
+      const what = inChat ? "`!list in` won't work until they open" : 'the link shows "opens soon"';
+      out.push({ text: `Heads-up: sign-ups for ${f.day(p)} aren't open yet, so ${what}.${how}`, quote: true });
     }
     return out;
   }
