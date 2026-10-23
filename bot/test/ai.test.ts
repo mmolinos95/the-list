@@ -139,4 +139,16 @@ describe("Gemini (phase 5)", () => {
     t += 31 * 60_000;
     expect(memory.forPrompt("chat", "ana")).toBe("");
   });
+
+  it("gives Gemini the forecast for each practice, and keeps working when the weather service is down", async () => {
+    const model = new FakeModel(() => ({ text: "Sunny, 62°F (17°C)." }));
+    const weather = { at: async () => "62°F (17°C), clear, 0% chance of rain, wind 5 mph" };
+    await commandsFor(data, [...FEATURES], { ai: model, weather }).run(parseCommand("weather monday?"), { asker: null, chatKey: "chat|w" });
+    expect(model.calls.at(-1)!.system).toContain("weather forecast at the start time: 62°F (17°C), clear, 0% chance of rain, wind 5 mph.");
+    expect(model.calls.at(-1)!.system).toMatch(/°F first, then °C/);
+    const down = { at: async () => Promise.reject(new Error("offline")) };
+    const out = await commandsFor(data, [...FEATURES], { ai: model, weather: down }).run(parseCommand("weather monday?"), { asker: null, chatKey: "chat|w" });
+    expect(out[0].text).toBe("Sunny, 62°F (17°C).");
+    expect(model.calls.at(-1)!.system).toContain("weather forecast: not available yet");
+  });
 });

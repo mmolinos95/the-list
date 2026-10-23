@@ -7,6 +7,7 @@ import { mailerFor, type Mailer } from "./mailer";
 import { geminiModel } from "./gemini";
 import { ChatMemory } from "./memory";
 import { LocalState } from "./state";
+import { Weather } from "./weather";
 
 // Wiring shared by the bot (main.ts) and the terminal (cli.ts).
 
@@ -26,6 +27,7 @@ export function buildApp(config: Config, overrides: Partial<Pick<App, "data" | "
     ai: config.features.has("ai") && config.geminiApiKey ? geminiModel(config.geminiApiKey, config.geminiModel) : undefined,
     mentionFor: (email) => state.mentionFor(email),
     memory: new ChatMemory(),
+    weather: new Weather(),
   });
   return { config, data, state, mailer, commands };
 }

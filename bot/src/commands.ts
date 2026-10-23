@@ -7,6 +7,7 @@ import type { Command } from "./parse";
 import { linkUrl } from "./phone";
 import { matchLists, pickPractice } from "./pick";
 import type { ChatMemory } from "./memory";
+import type { Weather } from "./weather";
 import { addQuietly, cancelQuietly, dropQuietly, signUpQuietly, type Promotion } from "./quiet";
 import { signupUrl } from "./links";
 import { chatPost, selectorFor, sharePost } from "./share";
@@ -34,6 +35,8 @@ export type CommandDeps = {
   mentionFor?: (email: string) => string | null;
   /** Recent exchanges per chat, for Gemini's follow-ups (memory.ts). */
   memory?: ChatMemory;
+  /** Practice forecasts for Gemini (weather.ts). */
+  weather?: Pick<Weather, "at">;
 };
 
 export type Request = {
@@ -334,7 +337,8 @@ export class Commands {
     if (!this.deps.ai) return reply(`Sorry, I didn't get that.\n\n${this.help(req.asker, true)}`);
     const practices = await this.deps.data.upcoming(this.now, 14);
     const memory = this.deps.memory;
-    const r = await ask(this.deps.ai, text, practices, req.asker, this.deps.features, this.now, undefined, memory?.forPrompt(chatOf(req), senderOf(req)) ?? "", !!req.replyToBot);
+    const weather = await this.forecasts(practices);
+    const r = await ask(this.deps.ai, text, practices, req.asker, this.deps.features, this.now, undefined, memory?.forPrompt(chatOf(req), senderOf(req)) ?? "", !!req.replyToBot, weather);
     if (r.kind === "silent") return [];
     if (r.kind === "text") {
       memory?.remember(chatOf(req), senderOf(req), text, r.text);
@@ -344,6 +348,22 @@ export class Commands {
     if (r.command.kind === "free") return reply("Sorry, I didn't get that. Try `!help`.");
     memory?.remember(chatOf(req), senderOf(req), text, `(ran ${typed(r.command)} and showed the result)`);
     return this.exec(r.command, req);
+  }
+
+  /** Forecasts for these practices by event id; none if the weather service is down. */
+  private async forecasts(practices: Practice[]) {
+    const out = new Map<string, string>();
+    const weather = this.deps.weather;
+    if (!weather) return out;
+    try {
+      for (const p of practices) {
+        const f = await weather.at(p.event.starts_at);
+        if (f) out.set(p.event.id, f);
+      }
+    } catch {
+      // No forecast is better than no answer.
+    }
+    return out;
   }
 
   // Phase 4: running a practice (board) -------------------------------------------

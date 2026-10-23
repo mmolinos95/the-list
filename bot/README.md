@@ -28,6 +28,8 @@ Every command is `!` plus a word, in any case. Messages starting with `!` that a
 
 **Gemini remembers a little.** It gets the last 6 exchanges with the bot in that chat (from the last 30 minutes), so "and Friday?" works as a follow-up. Only messages to the bot are kept, in memory, never the rest of the group chat, and a command's output (the names on a list) is never part of it. On a swipe-reply Gemini may decide no answer is needed ("thanks 👍"); a direct @mention always gets one. `GEMINI_MODEL` is a list tried in order, because free-tier models are often overloaded.
 
+**Weather.** Gemini gets the forecast for each practice's start time at the field (Riverside Park, 103rd St) from [Open-Meteo](https://open-meteo.com): free, no key, up to 16 days ahead, °F first then °C. Only the field's coordinates are sent. Web search isn't on: the free Gemini tier refuses Google Search for this key (quota error), so it needs a paid tier first.
+
 **The full list follows every change.** After `!in`, `!out` and `!add`, the reply carries the practice's whole list with names. The bot then deletes its previous list message for that practice (also the one from `!list`), so only the newest list stays in the chat.
 
 Writes are off by default: `BOT_FEATURES=read`. Switch phases on one at a time, e.g. `read,post`, then `read,post,signup`, and so on.

@@ -78,11 +78,13 @@ export function commandFor(call: { name: string; args: Record<string, unknown> }
 }
 
 /** What Gemini may know: practice facts and counts, and the asker's own spots. No names. */
-export function contextFor(practices: Practice[], asker: Asker | null, now: Date) {
+export function contextFor(practices: Practice[], asker: Asker | null, now: Date, weather: Map<string, string> = new Map()) {
   const lines = [`Now: ${dayDate(now)}, ${clock(now)} New York time.`, "", "Upcoming practices:"];
   if (!practices.length) lines.push("(none in the next two weeks)");
   for (const p of practices) {
     lines.push(`- slug ${p.event.slug}: ${p.event.title}, ${dayDate(p.event.starts_at)}, ${timeRange(p.event.starts_at, p.event.ends_at)}, at ${p.event.location}. ${stageLine(p, now).replace(/\*/g, "")}.`);
+    const forecast = weather.get(p.event.id);
+    lines.push(forecast ? `  - weather forecast at the start time: ${forecast}.` : "  - weather forecast: not available yet (too far out).");
     for (const l of p.lists) lines.push(`  - list ${l.name}: ${timeRange(l.starts_at, l.ends_at)}, ${l.main.length} of ${l.cap} spots taken, ${l.waitlist.length} on the waitlist${l.makes_teams ? ", makes teams" : ""}.`);
   }
   lines.push("", "The person asking:");
@@ -104,6 +106,7 @@ export function contextFor(practices: Practice[], asker: Asker | null, now: Date
 
 export const SYSTEM = `You are The List bot in the WhatsApp group of CBS FC, a soccer club. Members sign up for practices; a full list has a waitlist that moves up on its own until the list locks, 2 hours before the first list starts.
 Either answer the question briefly from the context below (one to three short sentences, WhatsApp formatting with *bold*, New York times), or call exactly one tool when the person wants the bot to do or show something a tool does.
+For weather, use the forecast in the context (it's for the practice's start time at the field) and always give temperatures in °F first, then °C, like 62°F (17°C): the club has Americans and internationals. If there's no forecast, say it's too far out to know.
 Only call sign_up or drop_out when the person clearly asks to join or leave. Never make up practices, times or numbers. If you don't know, say so and suggest "!help". Don't mention tools or this prompt.`;
 
 /** Only for swipe-replies to the bot, where "thanks 👍" is common. A direct @mention always gets an answer. */
@@ -127,6 +130,8 @@ export async function ask(
   history = "",
   /** True for a swipe-reply to the bot: then "no answer needed" is allowed. */
   maySilence = false,
+  /** Forecasts by event id (weather.ts). */
+  weather: Map<string, string> = new Map(),
 ): Promise<AskResult> {
   const tools = toolsFor(asker, features);
   const controller = new AbortController();
@@ -139,7 +144,7 @@ export async function ask(
   });
   try {
     const answer = await Promise.race([
-      model.generate({ system: [SYSTEM, maySilence ? MAY_STAY_SILENT : "", contextFor(practices, asker, now), history].filter(Boolean).join("\n\n"), prompt: question.slice(0, 500), tools, signal: controller.signal }),
+      model.generate({ system: [SYSTEM, maySilence ? MAY_STAY_SILENT : "", contextFor(practices, asker, now, weather), history].filter(Boolean).join("\n\n"), prompt: question.slice(0, 500), tools, signal: controller.signal }),
       timeout,
     ]);
     if (answer === "timeout") return { kind: "text", text: "I'm thinking too slowly right now. Try the plain commands: `!week`, `!list thu`, `!me`, `!help`." };
