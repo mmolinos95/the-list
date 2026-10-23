@@ -20,6 +20,8 @@ export type Config = {
   allowedGroups: string[];
   features: Set<Feature>;
   dataDir: string;
+  /** Who gets an email when the bot is down (alerts.ts). Empty: no alerts. */
+  alertEmails: string[];
 };
 
 /** Loads bot/.env into process.env if it exists. Real environment variables win. */
@@ -48,6 +50,9 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env, opts: { needSup
     if (!v && opts.needSupabase !== false) throw new Error(`Missing ${name}. Copy bot/.env.example to bot/.env and fill it in.`);
     return v ?? "";
   };
+  const alertEmails = (env.ALERT_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const bad = alertEmails.find((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+  if (bad) throw new Error(`ALERT_EMAILS has "${bad}", which isn't an email address.`);
   const phone = blank(env.BOT_PHONE);
   if (phone && !/^\+[1-9]\d{6,14}$/.test(phone)) throw new Error("BOT_PHONE must be E.164, like +12125550148.");
   return {
@@ -63,5 +68,6 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env, opts: { needSup
     allowedGroups: (env.ALLOWED_GROUPS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
     features: parseFeatures(env.BOT_FEATURES),
     dataDir: resolve(blank(env.DATA_DIR) ?? "./data"),
+    alertEmails,
   };
 }

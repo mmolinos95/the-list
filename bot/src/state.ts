@@ -31,6 +31,7 @@ export class LocalState {
       create table if not exists flows (wa_id text primary key, data text not null, updated_at integer not null);
       create table if not exists code_sends (wa_id text not null, sent_at integer not null);
       create index if not exists code_sends_wa on code_sends (wa_id, sent_at);
+      create table if not exists alert_sends (kind text primary key, sent_at integer not null);
       create table if not exists list_posts (
         chat_id text not null, event_id text not null, msg_id text not null, primary key (chat_id, event_id));
     `);
@@ -93,6 +94,16 @@ export class LocalState {
       .prepare(`insert into list_posts (chat_id, event_id, msg_id) values (?, ?, ?) on conflict (chat_id, event_id) do update set msg_id = excluded.msg_id`)
       .run(chatId, eventId, msgId);
     return row && row.msg_id !== msgId ? row.msg_id : null;
+  }
+
+  /** When an alert of this kind was last emailed (alerts.ts). */
+  lastAlert(kind: string): number | null {
+    const row = this.db.prepare(`select sent_at from alert_sends where kind = ?`).get(kind) as { sent_at: number } | undefined;
+    return row ? Number(row.sent_at) : null;
+  }
+
+  markAlert(kind: string, at: number) {
+    this.db.prepare(`insert into alert_sends (kind, sent_at) values (?, ?) on conflict (kind) do update set sent_at = excluded.sent_at`).run(kind, at);
   }
 
   close() {

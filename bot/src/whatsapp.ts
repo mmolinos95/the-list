@@ -82,6 +82,8 @@ export type WhatsAppOptions = {
   onMessage: (msg: IncomingMessage) => void;
   /** Called when WhatsApp logged the bot out. The bot must stop, not loop. */
   onLoggedOut: () => void;
+  /** Called when the connection opens (true) or drops and will be retried (false). */
+  onConnection?: (up: boolean) => void;
   log: (msg: string, err?: unknown) => void;
 };
 
@@ -119,6 +121,7 @@ export class WhatsApp implements Chat {
       if (connection === "open") {
         this.attempt = 0;
         this.opts.log("WhatsApp connected.");
+        this.opts.onConnection?.(true);
       }
       if (connection !== "close" || this.stopped) return;
       const code = (lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output?.statusCode;
@@ -128,6 +131,7 @@ export class WhatsApp implements Chat {
         this.opts.onLoggedOut();
         return;
       }
+      this.opts.onConnection?.(false);
       const delay = Math.min(5 * 60_000, 2_000 * 2 ** this.attempt++) * (0.75 + Math.random() / 2);
       this.opts.log(`WhatsApp disconnected (${code ?? "unknown"}). Reconnecting in ${Math.round(delay / 1000)}s.`);
       setTimeout(() => void this.start().catch((err) => this.opts.log("Reconnect failed", err)), delay);
