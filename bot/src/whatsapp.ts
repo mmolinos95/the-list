@@ -102,7 +102,7 @@ export class WhatsApp implements Chat {
       auth: state,
       version,
       logger,
-      browser: Browsers.ubuntu("The List bot"),
+      browser: Browsers.ubuntu("Chrome"),
       markOnlineOnConnect: false,
       syncFullHistory: false,
       shouldSyncHistoryMessage: () => false,

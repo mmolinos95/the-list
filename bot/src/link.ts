@@ -23,7 +23,7 @@ async function connect() {
     auth: state,
     version,
     logger: pino({ level: "warn" }),
-    browser: Browsers.ubuntu("The List bot"),
+    browser: Browsers.ubuntu("Chrome"),
     markOnlineOnConnect: false,
     syncFullHistory: false,
   });
