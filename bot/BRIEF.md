@@ -119,6 +119,46 @@ DATA_DIR=./data            # auth state + local db
 - `bot/deploy/upload.sh`: copies the build to the VM with `gcloud compute scp` and restarts the service.
 - `bot/README.md`: how to link WhatsApp, configure, run, deploy, and what the board needs to know at handover. This includes: the Google Voice number must send a text every month or two or Google reclaims it, and the bot phone must open WhatsApp at least every 14 days.
 
+## Round 2: before the board sees it (planned 2026-10-23)
+
+Phases 1–5 are built and tested live in the test group (see [README.md](README.md) for how the bot works today: `!` commands, the full list after every change, Gemini on @mention / swipe-reply, weather). Build these four, in this order, with the same hard rules as above (no schema or app changes, no deploys, no secrets, nothing pushed to `upstream`). Commit after each with `bot` tests, root `npm test`, lint and `tsc` passing.
+
+### R1. Rush handling (most important)
+
+**Problem.** When sign-ups open, 30–40 people send `!in` within a minute or two. The pacer allows one bot message every 2.5 s, at most 12 a minute, and each change is now two actions (the reply with the full list, then deleting the previous list). 40 sign-ups means about 7 minutes of replies, and the per-chat queue waits for each send, so processing lags too. People will think it's broken, and a burst of messages is exactly what gets numbers banned.
+
+**Build.**
+- Writes (`!in`, `!out`, `!add`, and the same through Gemini) still run **immediately and in arrival order**: the database is the source of truth and the order is fair. Don't let sending block the next write.
+- The **list message** is batched per practice per chat: the first change schedules one post; it goes out after 5 s with no further change for that practice, or 15 s after the first change at the latest. One message carries a summary of everything in the batch and then the full list, and it replaces the previous list (the existing `listOf` delete logic). Example top:
+  `✅ In: Ana Diaz (#12), Ben Ode (#13) · ❌ Out: Cy Fox · ⬆️ @Dee moves up (#40)`
+  @mentions for promotions keep working (linked → @mention, else plain name).
+- A lone change outside a rush behaves the same; it just arrives after the 5 s quiet window. Keep it simple: one code path.
+- Replies that aren't list changes stay immediate and quoted: errors, "which list?", "you're already on it", late-drop confirmation, `!me`, `!list`, Gemini text.
+- Typing indicator while a batch is pending is fine; don't spam presence updates.
+- Tests with fake timers: 40 sign-ups in 30 s produce a handful of list posts (not 40), all names in order, mentions kept, previous lists deleted, and a single change still posts within ~5 s.
+
+### R2. Down alert
+
+**Problem.** If WhatsApp disconnects or logs the bot out, nobody notices until members complain.
+
+**Build.** Email the addresses in a new `ALERT_EMAILS` setting (comma-separated; empty = no alerts) through the existing mailer (club Gmail):
+- **Logged out** (exit 78 path): immediately, with what to do (`npm run link` again; the bot phone must have opened WhatsApp in the last 14 days).
+- **Disconnected for more than 10 minutes** without reconnecting: once, then a "back online" email when it reconnects.
+- **Crash on start** (anything but NotLinked): once.
+- At most one email per kind per hour, so a flapping connection doesn't flood the inbox. Keep the alert state in memory or `bot.sqlite`, your call.
+- Add `ALERT_EMAILS` to `.env.example`, config, README. Tests with a fake mailer and fake clock.
+
+### R3. `!where` and a club FAQ for Gemini
+
+- **`!where [day]`** (feature `read`): the practice's place and a Google Maps link built from `event.location` (`https://www.google.com/maps/search/?api=1&query=<url-encoded location>`). No day: the next practice. Add it to `!help`, the Gemini tools (`where`), README.
+- **Club FAQ.** A `bot/FAQ.md` that the board fills in, loaded at start and added to Gemini's context. Write it as a **template**: headings and short "(board: fill in)" lines for late-drop policy, what to bring, fees/dues, guests, who to contact, weather cancellations. Only state facts already true in the app (lists lock 2 hours before the first list; the waitlist moves up on its own until the lock; dropping after the lock is a late drop). Don't invent club rules. Gemini must answer club questions only from the FAQ and say "ask the board" when it isn't there. A missing or empty file is fine (no FAQ in the context). Keep the FAQ out of the privacy problem: it's club info, no member data. Test that the FAQ text reaches the prompt and that a missing file doesn't break anything.
+
+### R4. Wrap-up
+
+- README: update the commands table, the behaviour notes and config for R1–R3.
+- Mark R1–R4 done here, and add anything that needs Martin under "Needs a decision".
+- Push to `origin main`. Summarize what changed and what Martin's local session must do (new `.env` settings, restart, what to test in the group).
+
 ## Order of work
 
 Build phases 1 → 5 in order, committing after each with its tests passing. Push to `origin` (the fork) when done.
