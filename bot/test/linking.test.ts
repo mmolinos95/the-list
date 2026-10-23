@@ -13,7 +13,8 @@ function setup() {
   const mailer = new FakeMailer();
   const state = memoryState(() => t);
   const deps: LinkingDeps = { data: dataFor(db), state, mailer, now: () => t };
-  const say = (text: string, waId = "dm1@lid") => handleLinking(waId, [waId, "15550001111@s.whatsapp.net"], text, deps);
+  const say = (text: string, waId = "dm1@lid", phone: string | null = null) =>
+    handleLinking(waId, [waId, "15550001111@s.whatsapp.net"], text, deps, phone);
   return { deps, mailer, state, say, advance: (ms: number) => (t += ms) };
 }
 
@@ -70,15 +71,14 @@ describe("linking by DM", () => {
     expect(await say("ana@example.com")).toMatch(/emailed/);
   });
 
-  it("asks a new member for their name and phone, and keeps them pending locally", async () => {
+  it("asks a new member only for their name, takes the phone from WhatsApp, and keeps them pending locally", async () => {
     const { say, mailer, state } = setup();
-    await say("link", "new@lid");
-    await say("newbie@example.com", "new@lid");
-    expect(await say(mailer.lastCode()!, "new@lid")).toMatch(/full name/);
-    expect(await say("Sam Lee", "new@lid")).toMatch(/phone number/);
-    expect(await say("not a phone", "new@lid")).toMatch(/doesn't look right/);
-    expect(await say("(212) 555-0199", "new@lid")).toMatch(/You're set, Sam/);
-    expect(state.link(["new@lid"])).toEqual({ email: "newbie@example.com", name: "Sam Lee", phone: "+12125550199" });
+    const phone = "+12125550199";
+    await say("link", "new@lid", phone);
+    await say("newbie@example.com", "new@lid", phone);
+    expect(await say(mailer.lastCode()!, "new@lid", phone)).toMatch(/full name/);
+    expect(await say("Sam Lee", "new@lid", phone)).toMatch(/You're set, Sam/);
+    expect(state.link(["new@lid"])).toEqual({ email: "newbie@example.com", name: "Sam Lee", phone });
     // No database row until their first sign-up.
     expect((await db.query(`select 1 from members where email = 'newbie@example.com'`)).rows).toHaveLength(0);
   });
@@ -92,5 +92,23 @@ describe("linking by DM", () => {
     expect(isLinkingMessage("x@lid", "anything", state)).toBe(true);
     expect(await say("stop", "x@lid")).toMatch(/stopped/);
     expect(isLinkingMessage("x@lid", "anything", state)).toBe(false);
+  });
+});
+
+describe("linking without a visible number", () => {
+  it("saves no phone rather than asking for one", async () => {
+    const { say, mailer, state } = setup();
+    await say("link", "hidden@lid");
+    await say("hidden@example.com", "hidden@lid");
+    await say(mailer.lastCode()!, "hidden@lid");
+    expect(await say("Kim Park", "hidden@lid")).toMatch(/You're set, Kim/);
+    expect(state.link(["hidden@lid"])).toEqual({ email: "hidden@example.com", name: "Kim Park", phone: null });
+  });
+
+  it("restarts a flow left on the old phone step", async () => {
+    const { say, state } = setup();
+    state.setFlow("old@lid", { step: "phone", email: "x@example.com", name: "X" } as never);
+    expect(await say("+12125550100", "old@lid")).toMatch(/start again/);
+    expect(state.flow("old@lid")).toBeNull();
   });
 });

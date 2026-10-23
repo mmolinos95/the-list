@@ -40,7 +40,7 @@ Members are matched by email in the database. The bot knows who's asking when:
 
 1. their WhatsApp ID is already linked (kept in the bot's local database), or
 2. WhatsApp shows their phone number and it matches a member's phone (the most recently updated one wins), or
-3. they link themselves: the bot replies with a `wa.me/<bot>?text=link` link, they send `link` in a DM, give their email, and type back the 6-digit code the bot emails them (10 minutes, at most 3 codes an hour). New members also give their name and phone; their database row is created by their first sign-up.
+3. they link themselves: the bot replies with a `wa.me/<bot>?text=link` link, they send `link` in a DM, give their email, and type back the 6-digit code the bot emails them (10 minutes, at most 3 codes an hour). New members also give their name. Their phone is only ever the number WhatsApp shows (none if hidden), never a typed one. Their database row is created by their first sign-up.
 
 Board members are recognized by their email being in `board_members`.
 

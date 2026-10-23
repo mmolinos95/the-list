@@ -60,7 +60,7 @@ describe("Gemini (phase 5)", () => {
     expect(await free(model, "put me down for that one", "ana@example.com")).toMatch(/Which list\?/);
     const both = new FakeModel(() => ({ call: { name: "sign_up", args: { practice: ev.slug, lists: "games" } } }));
     expect(await free(both, "I'll play games", "ana@example.com")).toMatch(/You're in: \*Games\*/);
-    expect(await free(both, "I'll play games", null)).toMatch(/don't know who you are/);
+    expect(await free(both, "I'll play games", null)).toMatch(/don't know your WhatsApp/);
   });
 
   it("doesn't offer board tools to members, and refuses them if asked anyway", async () => {

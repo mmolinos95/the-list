@@ -83,7 +83,7 @@ describe("the router", () => {
     const { bot, chat } = setup();
     await Promise.all([bot.handle(msg({ text: "!list help" })), bot.handle(msg({ text: "!list me" }))]);
     expect(chat.out[0].text).toMatch(/The List bot/);
-    expect(chat.out[1].text).toMatch(/don't know who you are/);
+    expect(chat.out[1].text).toMatch(/don't know your WhatsApp/);
     expect(chat.typingLog).toEqual(chat.typingLog.map((_, i) => (i % 2 ? expect.stringMatching(/off$/) : expect.stringMatching(/on$/))));
   });
 

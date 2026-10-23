@@ -46,7 +46,7 @@ Members are keyed by **email** in the database (`members.email`); `members.phone
    - Ask for the email they sign up with.
    - Email a 6-digit code to that address (expires in 10 minutes; max 3 codes per WhatsApp ID per hour). The email is the proof; never accept an email or phone number without the code.
    - They reply with the code → link their WhatsApp ID to that member in local state.
-   - If no member has that email (new member), also ask their full name and phone with country code, then keep them as a pending member in local state. The database row is created by their first `sign_up`, which takes name, email and phone.
+   - If no member has that email (new member), also ask their full name, then keep them as a pending member in local state. Their phone is the number WhatsApp shows, or none if it's hidden; never a typed one, since typed numbers can't be checked and phones are used to match people (decided 2026-10-23, after a tester typed a number that wasn't his WhatsApp). The database row is created by their first `sign_up`, which takes name, email and phone.
    - Say "you're set, go back to the group" and stop.
 
 **Board:** a sender is board if their linked member's email is in `board_members`. Board actions that take `p_by` get that board member's id.

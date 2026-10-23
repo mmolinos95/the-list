@@ -1,12 +1,13 @@
 import { randomInt } from "node:crypto";
 import type { Data } from "./data/types";
 import type { Mailer } from "./mailer";
-import { normalizePhone } from "./phone";
 import { hashCode, type LocalState } from "./state";
 
 // Linking a WhatsApp ID to a member, in a DM the member opened (the bot never
 // DMs first). The email is the proof: a 6-digit code goes to that address and
-// nothing is linked without it.
+// nothing is linked without it. The phone number only ever comes from WhatsApp
+// itself: a typed number can't be checked, and phone numbers are used to match
+// people, so a wrong one could tie someone to another member.
 
 export const CODE_TTL_MS = 10 * 60_000;
 export const CODES_PER_HOUR = 3;
@@ -26,9 +27,10 @@ const isStart = (text: string) => /^(!list\s+)?link[.!]?$/i.test(text.trim());
 /**
  * Handles one DM. `waId` is the chat's ID (the flow and code limits are keyed
  * on it); `allIds` are every ID WhatsApp gave for the sender, all linked at the end.
+ * `phone` is the sender's number if WhatsApp shows it, else null.
  * Returns the reply, or null to stay silent.
  */
-export async function handleLinking(waId: string, allIds: string[], text: string, deps: LinkingDeps): Promise<string | null> {
+export async function handleLinking(waId: string, allIds: string[], text: string, deps: LinkingDeps, phone: string | null = null): Promise<string | null> {
   const { state } = deps;
   const t = text.trim();
 
@@ -76,17 +78,14 @@ export async function handleLinking(waId: string, allIds: string[], text: string
     case "name": {
       const name = t.replace(/\s+/g, " ");
       if (name.length < 2 || name.length > 80 || !/\p{L}/u.test(name)) return "Please send your full name.";
-      state.setFlow(waId, { step: "phone", email: flow.email, name });
-      return "And your phone number, with country code (like +1 212 555 0148)?";
+      state.saveLink(allIds, { email: flow.email, name, phone });
+      state.clearFlow(waId);
+      return `You're set, ${name.split(" ")[0]}! Go back to the group and use \`!list\` there. You'll be added to the club's list when you first sign up.`;
     }
 
-    case "phone": {
-      const phone = normalizePhone(t);
-      if (!phone) return "That phone number doesn't look right. Include the country code, like +1 212 555 0148.";
-      state.saveLink(allIds, { email: flow.email, name: flow.name, phone });
+    default: // a flow saved by an older version (it used to ask for a phone number)
       state.clearFlow(waId);
-      return `You're set, ${flow.name.split(" ")[0]}! Go back to the group and use \`!list\` there. You'll be added to the club's list when you first sign up.`;
-    }
+      return "Something changed on my side. Send `link` to start again.";
   }
 }
 

@@ -15,7 +15,6 @@ export type Flow =
   | { step: "email" }
   | { step: "code"; email: string; codeHash: string; expiresAt: number; tries: number }
   | { step: "name"; email: string }
-  | { step: "phone"; email: string; name: string };
 
 export class LocalState {
   private db: DatabaseSync;

@@ -429,7 +429,7 @@ export class Commands {
   /** The asker, or the message telling an unknown sender how to link. */
   needMember(asker: Asker | null): Asker | string {
     if (asker) return asker;
-    const how = this.deps.botPhone ? `Tap ${linkUrl(this.deps.botPhone)} and send the message` : "Send me a DM saying `link`";
-    return `I don't know who you are yet. ${how} to link your WhatsApp (takes a minute), then try again here.`;
+    const how = this.deps.botPhone ? `tap ${linkUrl(this.deps.botPhone)} to message me and send "link"` : "send me a private message saying `link`";
+    return `I'm The List's bot and I don't know your WhatsApp yet. To connect it to your sign-ups (once, takes a minute), ${how}. I'll email you a code to check it's you, then try again here.`;
   }
 }

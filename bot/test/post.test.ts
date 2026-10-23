@@ -46,7 +46,7 @@ describe("!list post (phase 2)", () => {
 
   it("is for the board only, and needs the feature and the secret", async () => {
     expect((await run(`post ${openDay}`, "ana@example.com"))[0].text).toBe("Only the board can do that.");
-    expect((await run(`post ${openDay}`, null))[0].text).toMatch(/don't know who you are/);
+    expect((await run(`post ${openDay}`, null))[0].text).toMatch(/don't know your WhatsApp/);
     expect((await run(`post ${openDay}`, "pres@example.com", ["read"]))[0].text).toMatch(/isn't switched on/);
     const noSecret = await commandsFor(data, undefined, { dropLinkSecret: null }).run(parseCommand(`post ${openDay}`), { asker: await askerOf(data, "pres@example.com"), chatKey: "k" });
     expect(noSecret[0].text).toMatch(/DROP_LINK_SECRET/);

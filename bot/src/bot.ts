@@ -75,7 +75,7 @@ export class Bot {
 
   private async linking(msg: IncomingMessage) {
     const deps: LinkingDeps = { data: this.deps.data, state: this.deps.state, mailer: this.deps.mailer, now: this.deps.now };
-    const text = await handleLinking(msg.chatId, [msg.chatId, ...msg.senderIds], msg.text, deps);
+    const text = await handleLinking(msg.chatId, [msg.chatId, ...msg.senderIds], msg.text, deps, msg.senderPhone);
     return text ? [{ text, quote: false }] : [];
   }
 }
