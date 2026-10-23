@@ -18,8 +18,11 @@ export type Asker = {
 export async function whoIs(ids: string[], phone: string | null, data: Data, state: LocalState): Promise<Asker | null> {
   const link = state.link(ids);
   if (link) return askerFor(link.email, data, { name: link.name, phone: link.phone });
+  const member = phone ? await data.memberByPhone(phone) : null;
+  // How often hidden numbers stop us recognizing people. No numbers in the log.
+  const kind = ids.some((id) => id.endsWith("@lid")) ? "hidden ID" : "phone ID";
+  console.log(`[${new Date().toISOString()}] New sender (${kind}): number ${phone ? "visible" : "NOT visible"}, ${member?.email ? "member matched" : "no member match"}.`);
   if (phone) {
-    const member = await data.memberByPhone(phone);
     if (member?.email) {
       state.saveLink(ids, { email: member.email, name: member.name, phone: member.phone ?? phone });
       return { email: member.email, name: member.name, phone: member.phone ?? phone, member, board: await data.boardMember(member.email) };
