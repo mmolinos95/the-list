@@ -53,6 +53,8 @@ Members are keyed by **email** in the database (`members.email`); `members.phone
 
 ## Commands
 
+> **Changed 2026-10-23 (Martin):** commands are now `!` plus the word (`!in thu`, `!out thu`, `!me`, `!post thu`, …); unknown `!` words are ignored. `!list [day]` shows the practice with everyone's names (no day: the next one) and the old overview is `!week`. After every sign-up, drop-out and walk-in the reply carries the full list, and the bot deletes its previous list message for that practice so only the newest stays. [README.md](README.md) has the current table; the one below is the original plan.
+
 Practices are picked with loose input: `thu`, `thursday`, `10/23`, `next`. Times are shown in New York time (see `src/lib/time.ts`). Keep replies short and WhatsApp-formatted (`*bold*`).
 
 | Phase | Who | Command | Does |

@@ -31,6 +31,8 @@ export class LocalState {
       create table if not exists flows (wa_id text primary key, data text not null, updated_at integer not null);
       create table if not exists code_sends (wa_id text not null, sent_at integer not null);
       create index if not exists code_sends_wa on code_sends (wa_id, sent_at);
+      create table if not exists list_posts (
+        chat_id text not null, event_id text not null, msg_id text not null, primary key (chat_id, event_id));
     `);
   }
 
@@ -82,6 +84,15 @@ export class LocalState {
   recordCodeSent(waId: string) {
     this.db.prepare(`delete from code_sends where sent_at < ?`).run(this.now() - 86_400_000);
     this.db.prepare(`insert into code_sends (wa_id, sent_at) values (?, ?)`).run(waId, this.now());
+  }
+
+  /** Swaps in the bot's newest list message for a practice in a chat; returns the one it replaces. */
+  swapListPost(chatId: string, eventId: string, msgId: string): string | null {
+    const row = this.db.prepare(`select msg_id from list_posts where chat_id = ? and event_id = ?`).get(chatId, eventId) as { msg_id: string } | undefined;
+    this.db
+      .prepare(`insert into list_posts (chat_id, event_id, msg_id) values (?, ?, ?) on conflict (chat_id, event_id) do update set msg_id = excluded.msg_id`)
+      .run(chatId, eventId, msgId);
+    return row && row.msg_id !== msgId ? row.msg_id : null;
   }
 
   close() {

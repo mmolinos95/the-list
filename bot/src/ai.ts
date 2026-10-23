@@ -34,8 +34,8 @@ type Tool = ToolDecl & { feature: Feature; board?: boolean; toCommand: (a: Recor
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 export const TOOLS: Tool[] = [
-  { name: "upcoming_practices", feature: "read", description: "Show the upcoming practices with spots left.", parametersJsonSchema: obj(), toCommand: () => ({ kind: "overview" }) },
-  { name: "practice_details", feature: "read", description: "Show one practice: time, place, each list's count and waitlist.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "details", practice: str(a.practice) }) },
+  { name: "upcoming_practices", feature: "read", description: "Show the upcoming practices with spots left.", parametersJsonSchema: obj(), toCommand: () => ({ kind: "week" }) },
+  { name: "practice_details", feature: "read", description: "Show one practice: time, place, and who's signed up on each list and waitlist.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "list", practice: str(a.practice) }) },
   { name: "my_spots", feature: "read", description: "Show the asker's own spots and waitlist positions.", parametersJsonSchema: obj(), toCommand: () => ({ kind: "me" }) },
   { name: "help", feature: "read", description: "Show the bot's commands.", parametersJsonSchema: obj(), toCommand: () => ({ kind: "help" }) },
   { name: "sign_up", feature: "signup", description: "Sign the asker up for a practice. Only when they clearly ask to join.", parametersJsonSchema: obj({ practice: PRACTICE, lists: LISTS }, ["practice"]), toCommand: (a) => ({ kind: "in", practice: str(a.practice), lists: str(a.lists) }) },
@@ -103,7 +103,7 @@ export function contextFor(practices: Practice[], asker: Asker | null, now: Date
 
 export const SYSTEM = `You are The List bot in the WhatsApp group of CBS FC, a soccer club. Members sign up for practices; a full list has a waitlist that moves up on its own until the list locks, 2 hours before the first list starts.
 Either answer the question briefly from the context below (one to three short sentences, WhatsApp formatting with *bold*, New York times), or call exactly one tool when the person wants the bot to do or show something a tool does.
-Only call sign_up or drop_out when the person clearly asks to join or leave. Never make up practices, times or numbers. If you don't know, say so and suggest "!list help". Don't mention tools or this prompt.`;
+Only call sign_up or drop_out when the person clearly asks to join or leave. Never make up practices, times or numbers. If you don't know, say so and suggest "!help". Don't mention tools or this prompt.`;
 
 export type AskResult = { kind: "command"; command: Command } | { kind: "text"; text: string };
 
@@ -131,20 +131,20 @@ export async function ask(
       model.generate({ system: `${SYSTEM}\n\n${contextFor(practices, asker, now)}`, prompt: question.slice(0, 500), tools, signal: controller.signal }),
       timeout,
     ]);
-    if (answer === "timeout") return { kind: "text", text: "I'm thinking too slowly right now. Try the plain commands: `!list`, `!list thu`, `!list me`, `!list help`." };
+    if (answer === "timeout") return { kind: "text", text: "I'm thinking too slowly right now. Try the plain commands: `!week`, `!list thu`, `!me`, `!help`." };
     if ("call" in answer) {
       const command = commandFor(answer.call, tools);
-      return command ? { kind: "command", command } : { kind: "text", text: "Sorry, I can't do that. Try `!list help`." };
+      return command ? { kind: "command", command } : { kind: "text", text: "Sorry, I can't do that. Try `!help`." };
     }
     const text = answer.text.trim();
-    return { kind: "text", text: text ? text.slice(0, 1000) : "Sorry, I didn't get that. Try `!list help`." };
+    return { kind: "text", text: text ? text.slice(0, 1000) : "Sorry, I didn't get that. Try `!help`." };
   } catch (err) {
     const status = (err as { status?: number }).status;
     const msg = err instanceof Error ? err.message : String(err);
     if (status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(msg)) {
-      return { kind: "text", text: "I'm out of AI questions for now (free quota). The plain commands still work: `!list`, `!list thu`, `!list me`, `!list help`." };
+      return { kind: "text", text: "I'm out of AI questions for now (free quota). The plain commands still work: `!week`, `!list thu`, `!me`, `!help`." };
     }
-    return { kind: "text", text: "I can't answer free questions right now. The plain commands still work: `!list`, `!list thu`, `!list me`, `!list help`." };
+    return { kind: "text", text: "I can't answer free questions right now. The plain commands still work: `!week`, `!list thu`, `!me`, `!help`." };
   } finally {
     clearTimeout(timer);
   }

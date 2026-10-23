@@ -37,8 +37,8 @@ export function sharePost(
  *   Games: 12:40 - 13:40 (40 players)
  *   Location: Riverside Park (107th) entrance at 103rd St
  *
- *   *Sign up here:* send `!list in mon`
- *   Drop out: `!list out mon` · Who's in: `!list mon`
+ *   *Sign up here:* send `!in mon`
+ *   Drop out: `!out mon` · Who's in: `!list mon`
  *   Or on the web: https://…/p/2026-10-26-mon?k=…
  */
 export function chatPost(
@@ -49,17 +49,22 @@ export function chatPost(
 ) {
   const { date } = toLocalInputs(event.starts_at);
   const [, month, day] = date.split("-").map(Number);
-  // A weekday is easiest to type, but only names one practice within the week.
-  const within6Days = Date.parse(event.starts_at) - now.getTime() < 6 * 86_400_000;
-  const sel = within6Days ? weekdayShort(event.starts_at).toLowerCase() : `${month}/${day}`;
+  const sel = selectorFor(event.starts_at, now);
   return [
     `List Sign Up: ${month}/${day} ${weekdayLong(event.starts_at)} Practice`,
     ...lists.map((l) => `${l.name}: ${hm(l.starts_at)} - ${hm(l.ends_at)} (${l.cap} players)`),
     `Location: ${event.location}`,
     "",
-    `*Sign up here:* send \`!list in ${sel}\``,
-    ...(lists.length === 2 ? [`One list only? \`!list in ${sel} ${lists[0].name.toLowerCase()}\` · Both: \`!list in ${sel} both\``] : []),
-    `Drop out: \`!list out ${sel}\` · Who's in: \`!list ${sel}\``,
+    `*Sign up here:* send \`!in ${sel}\``,
+    ...(lists.length === 2 ? [`One list only? \`!in ${sel} ${lists[0].name.toLowerCase()}\` · Both: \`!in ${sel} both\``] : []),
+    `Drop out: \`!out ${sel}\` · Who's in: \`!list ${sel}\``,
     ...(link ? [`Or on the web: ${link}`] : []),
   ].join("\n");
+}
+
+/** How to name a practice in a command: a weekday is easiest to type, but only names one practice within the week. */
+export function selectorFor(startsAt: string, now: Date) {
+  if (Date.parse(startsAt) - now.getTime() < 6 * 86_400_000) return weekdayShort(startsAt).toLowerCase();
+  const [, month, day] = toLocalInputs(startsAt).date.split("-").map(Number);
+  return `${month}/${day}`;
 }

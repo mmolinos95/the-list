@@ -59,8 +59,12 @@ export class Bot {
       }
       await chat.typing(msg.chatId, false);
       for (const o of outs) {
-        if (o.quote) await chat.reply(msg, o.text, o.mentions);
-        else await chat.send(msg.chatId, o.text, o.mentions);
+        const id = o.quote ? await chat.reply(msg, o.text, o.mentions) : await chat.send(msg.chatId, o.text, o.mentions);
+        // Only the newest full list of a practice stays in the chat.
+        if (o.listOf && id) {
+          const old = this.deps.state.swapListPost(msg.chatId, o.listOf, id);
+          if (old) await chat.delete(msg.chatId, old).catch((err) => this.deps.log?.("Couldn't delete an old list", err));
+        }
       }
     } catch (err) {
       this.deps.log?.("Failed to send a reply", err);

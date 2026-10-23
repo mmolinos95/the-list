@@ -20,7 +20,7 @@ const log = (msg: string, err?: unknown) => (err ? console.error(`[${new Date().
 
 if (config.allowedGroups.length === 0) log("ALLOWED_GROUPS is empty, so the bot will only answer linking DMs.");
 if (config.features.has("ai") && !config.geminiApiKey) log("BOT_FEATURES has ai but GEMINI_API_KEY is empty, so free questions get the help text.");
-if (config.features.has("post") && !config.dropLinkSecret) log("DROP_LINK_SECRET is empty, so !list post can't make sign-up links.");
+if (config.features.has("post") && !config.dropLinkSecret) log("DROP_LINK_SECRET is empty, so !post can't make sign-up links.");
 log(`Features: ${[...config.features].join(", ")}. Groups: ${config.allowedGroups.join(", ") || "(none)"}.`);
 
 let bot: Bot;

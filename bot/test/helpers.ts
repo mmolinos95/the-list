@@ -84,13 +84,22 @@ export async function askerOf(data: Data, email: string): Promise<Asker> {
 }
 
 export class FakeChat implements Chat {
-  out: { chatId: string; text: string; quotedId?: string; mentions?: string[] }[] = [];
+  out: { id: string; chatId: string; text: string; quotedId?: string; mentions?: string[] }[] = [];
+  deleted: string[] = [];
   typingLog: string[] = [];
+  private n = 0;
   async reply(to: IncomingMessage, text: string, mentions?: string[]) {
-    this.out.push({ chatId: to.chatId, text, quotedId: to.id, ...(mentions ? { mentions } : {}) });
+    const id = `sent${++this.n}`;
+    this.out.push({ id, chatId: to.chatId, text, quotedId: to.id, ...(mentions ? { mentions } : {}) });
+    return id;
   }
   async send(chatId: string, text: string, mentions?: string[]) {
-    this.out.push({ chatId, text, ...(mentions ? { mentions } : {}) });
+    const id = `sent${++this.n}`;
+    this.out.push({ id, chatId, text, ...(mentions ? { mentions } : {}) });
+    return id;
+  }
+  async delete(_chatId: string, msgId: string) {
+    this.deleted.push(msgId);
   }
   async typing(chatId: string, on: boolean) {
     this.typingLog.push(`${chatId}:${on ? "on" : "off"}`);

@@ -29,42 +29,48 @@ const run = async (text: string, email: string | null = null, features?: Paramet
 };
 
 describe("reading (phase 1)", () => {
-  it("!list shows upcoming practices with spots left, and a short help", async () => {
-    const text = await run("");
+  it("!week shows upcoming practices with spots left, and a short help", async () => {
+    const text = await run("week");
     expect(text).toMatch(/\*Upcoming practices\*/);
     expect(text).toMatch(/Skills full, 1 waiting · Games 39 left · Open · locks/);
     expect(text).toMatch(/Sign-ups not open yet/);
-    expect(text).toMatch(/`!list help`/);
+    expect(text).toMatch(/`!help`/);
     expect(text.match(/Riverside Park/g)).toHaveLength(2); // the finished practice isn't there
   });
 
-  it("!list <day> shows times, place, counts and waitlist", async () => {
-    const text = await run(day);
+  it("!list <day> shows the practice with everyone's names, in order, and the waitlist", async () => {
+    const text = await run(`list ${day}`);
     expect(text).toMatch(/\*Thursday practice · /);
-    expect(text).toMatch(/• Skills: 2\/2 \(full\), 1 waiting · /);
-    expect(text).toMatch(/• Games: 1\/40 \(39 left\)/);
-    expect(text).not.toMatch(/Ana|Ben|Cy/); // no names in the counts
+    expect(text).toMatch(/\*Skills\* · .* · 2\/2\n1\. Ana Diaz\n2\. Ben Ode\n_Waitlist_\n1\. Cy Fox/);
+    expect(text).toMatch(/\*Games\* · .* · 1\/40\n1\. Ben Ode/);
+    expect(text).toMatch(/Sign up: `!in \w{3}` · Drop out: `!out \w{3}`/);
+  });
+
+  it("plain !list is the next practice, and the reply replaces the previous list", async () => {
+    const out = await commandsFor(data).run(parseCommand("list"), { asker: null, chatKey: "k" });
+    expect(out).toEqual([{ text: expect.stringMatching(/Thursday practice[\s\S]*1\. Ana Diaz/), quote: true, listOf: ev.id }]);
+    expect(await run("list", null)).toBe(await run(day, null));
   });
 
   it("says when it can't find a practice", async () => {
     expect(await run("12/25")).toMatch(/can't find a practice for "12\/25"/);
   });
 
-  it("!list me shows the asker's own spots and waitlist position", async () => {
+  it("!me shows the asker's own spots and waitlist position", async () => {
     expect(await run("me", "cy@example.com")).toMatch(/Skills: waitlist #1/);
     expect(await run("me", "ben@example.com")).toMatch(/Skills: in \(#2 of 2\) · Games: in \(#1 of 40\)/);
   });
 
-  it("!list me tells unknown senders how to link", async () => {
+  it("!me tells unknown senders how to link", async () => {
     expect(await run("me")).toMatch(/https:\/\/wa\.me\/12125550100\?text=link/);
   });
 
   it("help shows board commands only to the board, and only switched-on features", async () => {
     await db.query(`insert into board_members (email, name, role) values ('ana@example.com', 'Ana', 'president')`);
-    expect(await run("help", "ana@example.com")).toMatch(/\*Board\*[\s\S]*!list cancel thu/);
+    expect(await run("help", "ana@example.com")).toMatch(/\*Board\*[\s\S]*!cancel thu/);
     expect(await run("help", "cy@example.com")).not.toMatch(/Board/);
     const readOnly = await run("help", "ana@example.com", ["read"]);
-    expect(readOnly).not.toMatch(/!list in|Board/);
+    expect(readOnly).not.toMatch(/!in|Board/);
   });
 
   it("commands for features that are off say so", async () => {

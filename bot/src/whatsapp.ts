@@ -181,6 +181,7 @@ export class WhatsApp implements Chat {
       this.sent.set(sent.key.id, sent.message);
       if (this.sent.size > 200) this.sent.delete(this.sent.keys().next().value!);
     }
+    return sent?.key.id ?? null;
   }
 
   private socket() {
@@ -190,11 +191,15 @@ export class WhatsApp implements Chat {
 
   async reply(to: IncomingMessage, text: string, mentions?: string[]) {
     const quoted = this.raw.get(to.id);
-    this.remember(await this.socket().sendMessage(to.chatId, { text, mentions }, quoted ? { quoted } : undefined));
+    return this.remember(await this.socket().sendMessage(to.chatId, { text, mentions }, quoted ? { quoted } : undefined));
   }
 
   async send(chatId: string, text: string, mentions?: string[]) {
-    this.remember(await this.socket().sendMessage(chatId, { text, mentions }));
+    return this.remember(await this.socket().sendMessage(chatId, { text, mentions }));
+  }
+
+  async delete(chatId: string, msgId: string) {
+    await this.socket().sendMessage(chatId, { delete: { remoteJid: chatId, fromMe: true, id: msgId } });
   }
 
   async typing(chatId: string, on: boolean) {

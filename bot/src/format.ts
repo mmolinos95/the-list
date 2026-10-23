@@ -37,7 +37,7 @@ export function listCount(l: ListInfo, short = false) {
   return `${l.name}: ${l.main.length}/${l.cap}${left > 0 ? ` (${left} left)` : " (full)"}${wait}`;
 }
 
-/** One practice in the "!list" overview. */
+/** One practice in the "!week" overview. */
 export function overviewItem(p: Practice, now: Date) {
   const head = `*${day(p)}* · ${timeRange(p.event.starts_at, p.event.ends_at)} · ${p.event.location}`;
   if (p.stage === "cancelled") return `${head}\n${stageLine(p, now)}`;
@@ -57,7 +57,20 @@ export function details(p: Practice, now: Date) {
   return lines.join("\n");
 }
 
-/** A member's own spots, for "!list me" and after sign-ups. */
+/** The practice with everyone's names, for "!list" and after every change. */
+export function fullList(p: Practice, now: Date) {
+  const lines = [`*${p.event.title} · ${day(p)}*`, `${timeRange(p.event.starts_at, p.event.ends_at)} · ${p.event.location}`, stageLine(p, now)];
+  if (p.stage === "cancelled") return lines.join("\n");
+  const many = p.lists.length > 1;
+  for (const l of p.lists) {
+    lines.push("", `*${l.name}*${many ? ` · ${listTime(l)}` : ""} · ${l.main.length}/${l.cap}`);
+    lines.push(...(l.main.length ? l.main.map((s, i) => `${i + 1}. ${s.name}`) : ["_Nobody yet_"]));
+    if (l.waitlist.length) lines.push("_Waitlist_", ...l.waitlist.map((s, i) => `${i + 1}. ${s.name}`));
+  }
+  return lines.join("\n");
+}
+
+/** A member's own spots, for "!me" and after sign-ups. */
 export function mySpots(practices: Practice[], memberId: string) {
   const lines: string[] = [];
   for (const p of practices) {

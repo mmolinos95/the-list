@@ -55,7 +55,7 @@ describe("Gemini (phase 5)", () => {
     expect(await free(model, "where am i on the list", "ana@example.com")).toMatch(/\*Your spots\*\n.*Skills: in \(#1 of 2\)/);
   });
 
-  it("signs up through the same checks as !list in", async () => {
+  it("signs up through the same checks as !in", async () => {
     const model = new FakeModel(() => ({ call: { name: "sign_up", args: { practice: ev.slug } } }));
     expect(await free(model, "put me down for that one", "ana@example.com")).toMatch(/Which list\?/);
     const both = new FakeModel(() => ({ call: { name: "sign_up", args: { practice: ev.slug, lists: "games" } } }));
@@ -71,7 +71,7 @@ describe("Gemini (phase 5)", () => {
 
   it("never confirms a cancel for the board: they have to send yes", async () => {
     const model = new FakeModel(() => ({ call: { name: "cancel_practice", args: { practice: ev.slug, reason: "rain yes" } } }));
-    expect(await free(model, "cancel it, yes", "pres@example.com")).toMatch(/Cancel .*\? .*Reason: "rain"\.\nSend `!list cancel \S+ yes`/);
+    expect(await free(model, "cancel it, yes", "pres@example.com")).toMatch(/Cancel .*\? .*Reason: "rain"\.\nSend `!cancel \S+ yes`/);
     expect((await db.query(`select cancelled_at from events where id = $1`, [ev.id])).rows[0]).toEqual({ cancelled_at: null });
   });
 
@@ -85,7 +85,7 @@ describe("Gemini (phase 5)", () => {
   it("says so when Gemini is slow (over 20 s) or out of quota", async () => {
     const never: AiModel = { generate: () => new Promise(() => undefined) };
     const slow = await ask(never, "hi", [], null, new Set(FEATURES), new Date(), 30);
-    expect(slow).toEqual({ kind: "text", text: expect.stringMatching(/too slowly.*`!list help`/) });
+    expect(slow).toEqual({ kind: "text", text: expect.stringMatching(/too slowly.*`!help`/) });
     const quota: AiModel = { generate: async () => Promise.reject(Object.assign(new Error("RESOURCE_EXHAUSTED"), { status: 429 })) };
     expect((await ask(quota, "hi", [], null, new Set(FEATURES), new Date())) as { text: string }).toMatchObject({ text: expect.stringMatching(/out of AI questions/) });
     const down: AiModel = { generate: async () => Promise.reject(new Error("fetch failed")) };

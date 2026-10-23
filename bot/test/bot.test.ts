@@ -20,9 +20,9 @@ function setup() {
 }
 
 describe("the router", () => {
-  it("answers !list in an allowed group, quoted, with typing shown", async () => {
+  it("answers ! commands in an allowed group, quoted, with typing shown", async () => {
     const { bot, chat } = setup();
-    const m = msg({ text: "!list" });
+    const m = msg({ text: "!week" });
     await bot.handle(m);
     expect(chat.out).toHaveLength(1);
     expect(chat.out[0]).toMatchObject({ chatId: m.chatId, quotedId: m.id });
@@ -68,20 +68,20 @@ describe("the router", () => {
   it("recognizes a linked sender in the group", async () => {
     const { bot, chat, state } = setup();
     state.saveLink(["777@lid"], { email: "ana@example.com", name: null, phone: null });
-    await bot.handle(msg({ text: "!list me", senderIds: ["777@lid"] }));
+    await bot.handle(msg({ text: "!me", senderIds: ["777@lid"] }));
     expect(chat.out[0].text).toMatch(/not on any upcoming list/);
   });
 
   it("matches a visible phone number in the group", async () => {
     const { bot, chat, state } = setup();
-    await bot.handle(msg({ text: "!list me", senderIds: ["12125550101@s.whatsapp.net"], senderPhone: "+12125550101" }));
+    await bot.handle(msg({ text: "!me", senderIds: ["12125550101@s.whatsapp.net"], senderPhone: "+12125550101" }));
     expect(chat.out[0].text).toMatch(/not on any upcoming list/);
     expect(state.link(["12125550101@s.whatsapp.net"])?.email).toBe("ana@example.com");
   });
 
   it("answers one question at a time per chat, in order", async () => {
     const { bot, chat } = setup();
-    await Promise.all([bot.handle(msg({ text: "!list help" })), bot.handle(msg({ text: "!list me" }))]);
+    await Promise.all([bot.handle(msg({ text: "!help" })), bot.handle(msg({ text: "!me" }))]);
     expect(chat.out[0].text).toMatch(/The List bot/);
     expect(chat.out[1].text).toMatch(/don't know your WhatsApp/);
     expect(chat.typingLog).toEqual(chat.typingLog.map((_, i) => (i % 2 ? expect.stringMatching(/off$/) : expect.stringMatching(/on$/))));
@@ -92,11 +92,11 @@ describe("the router", () => {
     const data = dataFor(db);
     const commands = { run: async () => [{ text: "Done.\n⬆️ @98765 moves up", quote: true, mentions: ["98765@lid"] }, { text: "Notice", quote: false }] } as unknown as Commands;
     const bot = new Bot({ chat, data, state: memoryState(), mailer: new FakeMailer(), commands, allowedGroups: ["CBS FC"], now: Date.now });
-    const m = msg({ text: "!list out thu" });
+    const m = msg({ text: "!out thu" });
     await bot.handle(m);
     expect(chat.out).toEqual([
-      { chatId: m.chatId, text: "Done.\n⬆️ @98765 moves up", quotedId: m.id, mentions: ["98765@lid"] },
-      { chatId: m.chatId, text: "Notice" },
+      { id: "sent1", chatId: m.chatId, text: "Done.\n⬆️ @98765 moves up", quotedId: m.id, mentions: ["98765@lid"] },
+      { id: "sent2", chatId: m.chatId, text: "Notice" },
     ]);
   });
 
@@ -106,5 +106,24 @@ describe("the router", () => {
     const bot = new Bot({ chat, data, state: memoryState(), mailer: new FakeMailer(), commands: commandsFor(data, ["read"]), allowedGroups: ["CBS FC"], now: Date.now });
     await bot.handle(msg({ text: "!list" }));
     expect(chat.out[0].text).toMatch(/something went wrong/);
+  });
+
+  it("keeps only the newest list of a practice: each new one deletes the bot's previous one", async () => {
+    const chat = new FakeChat();
+    let n = 0;
+    const commands = { run: async () => [{ text: `List ${++n}`, quote: true, listOf: n < 3 ? "ev1" : "ev2" }] } as unknown as Commands;
+    const bot = new Bot({ chat, data: dataFor(db), state: memoryState(), mailer: new FakeMailer(), commands, allowedGroups: ["CBS FC"], now: Date.now });
+    await bot.handle(msg({ text: "!in thu" }));
+    expect(chat.deleted).toEqual([]);
+    await bot.handle(msg({ text: "!in thu" }));
+    expect(chat.deleted).toEqual(["sent1"]);
+    await bot.handle(msg({ text: "!list fri" })); // another practice: nothing to replace
+    expect(chat.deleted).toEqual(["sent1"]);
+  });
+
+  it("ignores ! messages that aren't commands", async () => {
+    const { bot, chat } = setup();
+    for (const text of ["!!!", "!nice", "!lol thu"]) await bot.handle(msg({ text }));
+    expect(chat.out).toEqual([]);
   });
 });

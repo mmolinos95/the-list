@@ -2,32 +2,44 @@ import { describe, expect, it } from "vitest";
 import { parseCommand, triggerBody } from "../src/parse";
 
 describe("triggerBody", () => {
-  it("answers !list in any case, with or without words after it", () => {
-    expect(triggerBody("!list", false)).toBe("");
-    expect(triggerBody("  !LIST thu ", false)).toBe("thu");
-    expect(triggerBody("!List: me", false)).toBe("me");
+  it("answers ! plus a command word, in any case", () => {
+    expect(triggerBody("!list", false)).toBe("list");
+    expect(triggerBody("  !LIST thu ", false)).toBe("LIST thu");
+    expect(triggerBody("!in mon", false)).toBe("in mon");
+    expect(triggerBody("! out fri", false)).toBe("out fri");
+    expect(triggerBody("!Me", false)).toBe("Me");
+    expect(triggerBody("!week", false)).toBe("week");
+    expect(triggerBody("!sign up thu", false)).toBe("sign up thu");
   });
 
-  it("ignores everything else unless the bot is mentioned", () => {
-    expect(triggerBody("list thu", false)).toBeNull();
-    expect(triggerBody("!listing", false)).toBeNull();
-    expect(triggerBody("hey !list thu", false)).toBeNull();
+  it("ignores ! messages that aren't commands, and everything else unless the bot is mentioned", () => {
+    for (const t of ["!!!", "!nice", "!listing", "! ", "!", "list thu", "hey !in thu", "in thu"]) expect(triggerBody(t, false)).toBeNull();
     expect(triggerBody("when is practice?", true)).toBe("when is practice?");
-    expect(triggerBody("!list thu", true)).toBe("thu");
+    expect(triggerBody("!nice one", true)).toBe("nice one");
+    expect(triggerBody("!in thu", true)).toBe("in thu");
   });
 });
 
 describe("parseCommand", () => {
-  it("reads the overview, help and me", () => {
-    expect(parseCommand("")).toEqual({ kind: "overview" });
+  it("reads week, help and me", () => {
+    expect(parseCommand("")).toEqual({ kind: "week" });
+    expect(parseCommand("week")).toEqual({ kind: "week" });
     expect(parseCommand("help")).toEqual({ kind: "help" });
     expect(parseCommand("ME")).toEqual({ kind: "me" });
   });
 
-  it("treats a bare practice as details", () => {
+  it("reads list, with or without a practice, and a bare practice as its list", () => {
+    expect(parseCommand("list")).toEqual({ kind: "list", practice: "" });
+    expect(parseCommand("LIST thu")).toEqual({ kind: "list", practice: "thu" });
     for (const p of ["thu", "thursday", "next", "10/23", "oct 23", "tomorrow", "2026-10-23", "next thu"]) {
-      expect(parseCommand(p)).toEqual({ kind: "details", practice: p });
+      expect(parseCommand(p)).toEqual({ kind: "list", practice: p });
     }
+  });
+
+  it("still understands the old !list in / !list me form", () => {
+    expect(parseCommand("list in thu")).toEqual({ kind: "in", practice: "thu", lists: "" });
+    expect(parseCommand("list me")).toEqual({ kind: "me" });
+    expect(parseCommand("list out fri yes")).toEqual({ kind: "out", practice: "fri", lists: "", confirm: true });
   });
 
   it("splits commands into practice and the rest", () => {

@@ -47,11 +47,11 @@ async function websiteDrop(eventId: string, email: string, listIds: string[]) {
   await new Promise((r) => setTimeout(r, 2)); // PGlite's clock ticks per millisecond
 }
 
-describe("!list in (phase 3)", () => {
+describe("!in (phase 3)", () => {
   it("signs a member up with their saved details, and says main or waitlist", async () => {
     const ev = await practice(db, { startsIn: "1 day", lists: [{ name: "Games", cap: 1 }] });
     const day = ev.slug;
-    expect(await run(`in ${day}`, "ana@example.com")).toMatch(/You're in: \*Games\*, #1 of 1\.\n.*Can't make it\? `!list out \S+`\./);
+    expect(await run(`in ${day}`, "ana@example.com")).toMatch(/^You're in: \*Games\*, #1 of 1\.\n\n\*.* · .*\*\n[\s\S]*\*Games\* · 1\/1\n1\. Ana Diaz/);
     expect(await run(`in ${day}`, "ben@example.com")).toMatch(/\*Games\* is full\. You're #1 on the waitlist/);
     expect(await run(`in ${day}`, "ana@example.com")).toBe("You're already on *Games* (#1 of 1).");
     expect(await spots(ev.id)).toEqual([
@@ -63,7 +63,7 @@ describe("!list in (phase 3)", () => {
   it("asks which list when there are several, and takes names or both", async () => {
     const ev = await practice(db, { startsIn: "2 days", lists: [{ name: "Skills", cap: 40 }, { name: "Games", cap: 40 }] });
     const day = ev.slug;
-    expect(await run(`in ${day}`, "ana@example.com")).toMatch(/Which list\? \*Skills\* \(.*\) or \*Games\* \(.*\)\.\nSend `!list in \S+ skills`, `!list in \S+ games` or `!list in \S+ both`/);
+    expect(await run(`in ${day}`, "ana@example.com")).toMatch(/Which list\? \*Skills\* \(.*\) or \*Games\* \(.*\)\.\nSend `!in \S+ skills`, `!in \S+ games` or `!in \S+ both`/);
     expect(await run(`in ${day} goalie`, "ana@example.com")).toMatch(/no list called "goalie"/);
     expect(await run(`in ${day} games`, "ana@example.com")).toMatch(/You're in: \*Games\*/);
     expect(await run(`in ${day} both`, "ben@example.com")).toMatch(/You're in: \*Skills\*.*\nYou're in: \*Games\*/);
@@ -97,13 +97,13 @@ describe("!list in (phase 3)", () => {
   });
 });
 
-describe("!list out (phase 3)", () => {
+describe("!out (phase 3)", () => {
   it("drops all of a member's lists, and the waitlist moves up before the lock", async () => {
     const ev = await practice(db, { startsIn: "1 day", lists: [{ name: "Skills", cap: 1 }, { name: "Games", cap: 40 }] });
     const day = ev.slug;
     await dbSignUp(db, ev.id, [ev.lists.Skills, ev.lists.Games], "Ana Diaz", "ana@example.com");
     await dbSignUp(db, ev.id, [ev.lists.Skills], "Ben Ode", "ben@example.com");
-    expect(await run(`out ${day} skills`, "ana@example.com")).toMatch(/^Done: you're off \*Skills\* for .*\.\n⬆️ @98765 moves up from the waitlist: in for \*Skills\* \(#1 of 1\)\.$/);
+    expect(await run(`out ${day} skills`, "ana@example.com")).toMatch(/^Done: you're off \*Skills\* for .*\.\n⬆️ @98765 moves up from the waitlist: in for \*Skills\* \(#1 of 1\)\.\n\n/);
     expect(await spots(ev.id)).toEqual([
       expect.objectContaining({ email: "ana@example.com", list: "Skills", status: "dropped" }),
       expect.objectContaining({ email: "ana@example.com", list: "Games", status: "active" }),
@@ -120,12 +120,12 @@ describe("!list out (phase 3)", () => {
     await db.query(`update events set starts_at = now() + interval '1 hour', ends_at = now() + interval '3 hours' where id = $1`, [ev.id]);
     const day = ev.slug;
     const ask = await run(`out ${day}`, "ana@example.com", "chat|ana");
-    expect(ask).toMatch(/^The list has locked, so this counts as a late drop\. Still drop\? Send `!list out \S+ yes`\.$/);
+    expect(ask).toMatch(/^The list has locked, so this counts as a late drop\. Still drop\? Send `!out \S+ yes`\.$/);
     expect(ask).not.toMatch(/board/);
     expect((await spots(ev.id))[0].status).toBe("active");
     // Someone else's "yes" doesn't count.
     expect(await run(`out ${day}`, "ben@example.com", "chat|ben")).toMatch(/You're not on/);
-    expect(await run(`out ${day} yes`, "ana@example.com", "chat|ana")).toMatch(/^Done: you're off \*Games\* for .*\. It was a late drop, so nobody moves up on their own\.$/);
+    expect(await run(`out ${day} yes`, "ana@example.com", "chat|ana")).toMatch(/^Done: you're off \*Games\* for .*\. It was a late drop, so nobody moves up on their own\.\n\n/);
     expect((await spots(ev.id))[0]).toMatchObject({ status: "dropped", dropped_late: true });
     // drop_signups queued a heads-up to the board; the bot deleted it.
     expect(await emails(ev.id)).toEqual([{ kind: "signup", to_address: "ana@example.com" }]);
@@ -159,8 +159,9 @@ describe("notifications are WhatsApp only", () => {
     const [out] = await outs(`out ${ev.slug}`, "ana@example.com");
     expect(out).toEqual({
       quote: true,
-      text: expect.stringMatching(/^Done: you're off \*Games\* for .*\.\n⬆️ @98765 moves up from the waitlist: in for \*Games\* \(#1 of 1\)\.$/),
+      text: expect.stringMatching(/^Done: you're off \*Games\* for .*\.\n⬆️ @98765 moves up from the waitlist: in for \*Games\* \(#1 of 1\)\.\n\n[\s\S]*1\. Ben Ode\n_Waitlist_\n1\. Cy Fox/),
       mentions: ["98765@lid"],
+      listOf: ev.id,
     });
     expect(await emails(ev.id)).toEqual([]);
 
@@ -171,7 +172,7 @@ describe("notifications are WhatsApp only", () => {
     // Cy drops in WhatsApp; Ana never linked her WhatsApp, so she's named, not @mentioned.
     await run(`in ${ev.slug}`, "ana@example.com");
     const [again] = await outs(`out ${ev.slug}`, "cy@example.com");
-    expect(again.text).toMatch(/\n⬆️ \*Ana Diaz\* moves up from the waitlist: in for \*Games\* \(#1 of 1\)\.$/);
+    expect(again.text).toMatch(/\n⬆️ \*Ana Diaz\* moves up from the waitlist: in for \*Games\* \(#1 of 1\)\.\n\n/);
     expect(again.mentions).toBeUndefined();
     expect(await emails(ev.id)).toEqual([{ kind: "promoted", to_address: "cy@example.com" }]);
   });

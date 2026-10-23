@@ -32,17 +32,17 @@ describe("board commands (phase 4)", () => {
     expect(await run(`add ${ev.slug} Joe Walkin`, "ana@example.com")).toBe("Only the board can do that.");
   });
 
-  it("!list open opens sign-ups now, like the app's button", async () => {
+  it("!open opens sign-ups now, like the app's button", async () => {
     const ev = await practice(db, { startsIn: "3 days", opensIn: null });
-    expect(await run(`open ${ev.slug}`)).toMatch(/Sign-ups for .* are open\. Post it with `!list post/);
+    expect(await run(`open ${ev.slug}`)).toMatch(/Sign-ups for .* are open\. Post it with `!post/);
     expect(await one<{ open: boolean }>(`select opens_at <= now() as open from events where id = $1`, [ev.id])).toEqual({ open: true });
     expect(await run(`open ${ev.slug}`)).toMatch(/already open/);
   });
 
-  it("!list cancel asks first, then cancels with the reason in one group message, no emails", async () => {
+  it("!cancel asks first, then cancels with the reason in one group message, no emails", async () => {
     const ev = await practice(db, { startsIn: "5 days" });
     await dbSignUp(db, ev.id, [ev.lists.Games], "Ana Diaz", "ana@example.com");
-    expect(await run(`cancel ${ev.slug} field is flooded`)).toMatch(/Cancel .*\? I'll post it in the group \(1 player signed up\)\. Reason: "field is flooded"\.\nSend `!list cancel \S+ yes`/);
+    expect(await run(`cancel ${ev.slug} field is flooded`)).toMatch(/Cancel .*\? I'll post it in the group \(1 player signed up\)\. Reason: "field is flooded"\.\nSend `!cancel \S+ yes`/);
     expect(await one(`select cancelled_at from events where id = $1`, [ev.id])).toEqual({ cancelled_at: null });
     const out = await commands.run(parseCommand(`cancel ${ev.slug} yes`), { asker: await askerOf(data, "pres@example.com"), chatKey: "chat|pres" });
     expect(out).toEqual([{ quote: false, text: expect.stringMatching(/^\*Thursday practice, .*, is cancelled\.\*\nReason: field is flooded\n1 player was signed up; nobody needs to drop out\.$/) }]);
@@ -51,20 +51,20 @@ describe("board commands (phase 4)", () => {
     expect(await run(`cancel ${ev.slug} yes`)).toMatch(/already cancelled/);
   });
 
-  it("!list cancel <day> <reason> yes works in one go", async () => {
+  it("!cancel <day> <reason> yes works in one go", async () => {
     const ev = await practice(db, { startsIn: "6 days" });
     expect(await run(`cancel ${ev.slug} thunderstorms yes`)).toMatch(/Nobody was signed up/);
     expect(await one(`select cancel_reason from events where id = $1`, [ev.id])).toEqual({ cancel_reason: "thunderstorms" });
   });
 
-  it("!list add asks which list when there are several", async () => {
+  it("!add asks which list when there are several", async () => {
     const ev = await practice(db, { startsIn: "7 days", lists: [{ name: "Skills", cap: 1 }, { name: "Games", cap: 40 }] });
-    expect(await run(`add ${ev.slug} Joe Walkin`)).toMatch(/Which list\? .*Send `!list add \S+ Joe Walkin skills`/);
+    expect(await run(`add ${ev.slug} Joe Walkin`)).toMatch(/Which list\? .*Send `!add \S+ Joe Walkin skills`/);
   });
 
-  it("!list add: over the cap on main, multi-word list names, waitlist", async () => {
+  it("!add: over the cap on main, multi-word list names, waitlist", async () => {
     const ev = await practice(db, { startsIn: "8 days", lists: [{ name: "Skills", cap: 1 }, { name: "Small Sided", cap: 40 }] });
-    expect(await run(`add ${ev.slug} Joe Walkin skills`)).toMatch(/^Added \*Joe Walkin\* to the main list for \*Skills\*, .*\.$/);
+    expect(await run(`add ${ev.slug} Joe Walkin skills`)).toMatch(/^Added \*Joe Walkin\* to the main list for \*Skills\*, .*\.\n\n[\s\S]*\*Skills\* · .* · 1\/1\n1\. Joe Walkin/);
     expect(await run(`add ${ev.slug} Kim Lee skills`)).toMatch(/to the main list for \*Skills\*.* That's 2 of 1\./);
     expect(await run(`add ${ev.slug} Mo Salah small sided`)).toMatch(/Added \*Mo Salah\* to the main list for \*Small Sided\*/);
     expect(await run(`add ${ev.slug} Lu Wait skills waitlist`)).toMatch(/Added \*Lu Wait\* to the waitlist for \*Skills\*/);
@@ -81,7 +81,7 @@ describe("board commands (phase 4)", () => {
     ]);
   });
 
-  it("!list teams shuffles and shows the draft teams", async () => {
+  it("!teams shuffles and shows the draft teams", async () => {
     const ev = await practice(db, { startsIn: "9 days", lists: [{ name: "Skills", cap: 40 }, { name: "Games", cap: 40, teams: true }] });
     expect(await run(`teams ${ev.slug}`)).toBe("Nobody's on the list yet.");
     for (const name of ["A One", "B Two", "C Three", "D Four", "E Five"]) await run(`add ${ev.slug} ${name} games`);

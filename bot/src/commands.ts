@@ -8,13 +8,17 @@ import { linkUrl } from "./phone";
 import { matchLists, pickPractice } from "./pick";
 import { addQuietly, cancelQuietly, dropQuietly, signUpQuietly, type Promotion } from "./quiet";
 import { signupUrl } from "./links";
-import { chatPost, sharePost } from "./share";
+import { chatPost, selectorFor, sharePost } from "./share";
 
 // Runs a parsed command for someone. Every permission check lives here, so a
 // command picked by Gemini (ai.ts) gets exactly the same checks as a typed one.
 
-/** One message to send. `mentions` are WhatsApp IDs written as "@<number>" in the text. */
-export type Out = { text: string; quote: boolean; mentions?: string[] };
+/**
+ * One message to send. `mentions` are WhatsApp IDs written as "@<number>" in the text.
+ * `listOf` marks a message carrying a practice's full list (an event id): the bot
+ * deletes its previous one for that practice, so only the newest stays in the chat.
+ */
+export type Out = { text: string; quote: boolean; mentions?: string[]; listOf?: string };
 
 export type CommandDeps = {
   data: Data;
@@ -69,9 +73,9 @@ class Pending {
 
 /** The feature each command needs. */
 export const FEATURE_OF: Record<Command["kind"], Feature> = {
-  overview: "read",
+  week: "read",
   help: "read",
-  details: "read",
+  list: "read",
   me: "read",
   post: "post",
   in: "signup",
@@ -98,12 +102,12 @@ export class Commands {
       return reply("That isn't switched on yet. For now, use the app or ask the board.");
     }
     switch (cmd.kind) {
-      case "overview":
+      case "week":
         return this.overview(req);
       case "help":
         return reply(this.help(req.asker, false));
-      case "details":
-        return this.details(cmd.practice);
+      case "list":
+        return this.list(cmd.practice);
       case "me":
         return this.me(req);
       case "post":
@@ -139,43 +143,60 @@ export class Commands {
   help(asker: Asker | null, short: boolean) {
     const has = (x: Feature) => this.deps.features.has(x);
     if (short) {
-      const bits = ["`!list thu` details", "`!list me` your spots"];
-      if (has("signup")) bits.push("`!list in thu` / `!list out thu`");
-      if (has("ai")) bits.push("or just ask me");
-      return `${bits.join(" · ")} · \`!list help\``;
+      const bits = ["`!list thu` who's in", "`!me` your spots"];
+      if (has("signup")) bits.push("`!in thu` / `!out thu`");
+      if (has("ai")) bits.push("or @mention me with a question");
+      return `${bits.join(" · ")} · \`!help\``;
     }
     const lines = [
       "*The List bot*",
-      "`!list` upcoming practices",
+      "`!list` who's in for the next practice",
       "`!list thu` one practice (also `next`, `tomorrow`, `10/23`)",
-      "`!list me` your spots",
+      "`!week` upcoming practices",
+      "`!me` your spots",
     ];
-    if (has("signup")) lines.push("`!list in thu [list]` sign up", "`!list out thu [list]` drop out");
+    if (has("signup")) lines.push("`!in thu [list]` sign up", "`!out thu [list]` drop out");
     if (has("ai")) lines.push("Or @mention me with a question.");
     if (asker?.board && (has("post") || has("board"))) {
       lines.push("", "*Board*");
-      if (has("post")) lines.push("`!list post thu` post the sign-up message");
+      if (has("post")) lines.push("`!post thu` post the practice");
       if (has("board"))
         lines.push(
-          "`!list open thu` open sign-ups now",
-          "`!list cancel thu [reason]` cancel (asks to confirm)",
-          "`!list add thu Name [list] [waitlist]` add a walk-in",
-          "`!list teams thu` shuffle teams",
+          "`!open thu` open sign-ups now",
+          "`!cancel thu [reason]` cancel (asks to confirm)",
+          "`!add thu Name [list] [waitlist]` add a walk-in",
+          "`!teams thu` shuffle teams",
         );
     }
     return lines.join("\n");
   }
 
-  private async details(selector: string): Promise<Out[]> {
-    const p = await this.find(selector);
+  /** The practice with everyone's names. No practice named means the next one. */
+  private async list(selector: string): Promise<Out[]> {
+    const p = await this.find(selector || "next");
     if (typeof p === "string") return reply(p);
-    return reply(f.details(p, this.now));
+    return [this.listOut(p, "")];
+  }
+
+  /** A message with `top` (if any) and the practice's full list, replacing the previous list in the chat. */
+  private listOut(p: Practice, top: string, mentions: string[] = []): Out {
+    let text = f.fullList(p, this.now);
+    if (p.stage === "open" && this.deps.features.has("signup")) {
+      const sel = selectorFor(p.event.starts_at, this.now);
+      text += `\n\nSign up: \`!in ${sel}\` · Drop out: \`!out ${sel}\``;
+    }
+    return { text: top ? `${top}\n\n${text}` : text, quote: true, listOf: p.event.id, ...(mentions.length ? { mentions } : {}) };
+  }
+
+  /** The practice as it is now, after a write. */
+  private async fresh(p: Practice) {
+    return (await this.deps.data.practice(p.event.id, this.now)) ?? p;
   }
 
   private async me(req: Request): Promise<Out[]> {
     const who = this.needMember(req.asker);
     if (typeof who === "string") return reply(who);
-    if (!who.member) return reply("You're not on any list yet. Sign up with `!list in thu`.");
+    if (!who.member) return reply("You're not on any list yet. Sign up with `!in thu`.");
     const practices = await this.deps.data.upcoming(this.now, 14);
     const lines = f.mySpots(practices, who.member.id);
     return reply(lines.length ? `*Your spots*\n${lines.join("\n")}` : "You're not on any upcoming list.");
@@ -200,8 +221,8 @@ export class Commands {
       : sharePost(secret!, this.deps.siteUrl, p.event, p.lists);
     const out: Out[] = [{ text, quote: false }];
     if (p.stage === "waiting") {
-      const how = this.deps.features.has("board") ? ` Open them with \`!list open ${selector}\`.` : " Open them in the app.";
-      const what = inChat ? "`!list in` won't work until they open" : 'the link shows "opens soon"';
+      const how = this.deps.features.has("board") ? ` Open them with \`!open ${selector}\`.` : " Open them in the app.";
+      const what = inChat ? "`!in` won't work until they open" : 'the link shows "opens soon"';
       out.push({ text: `Heads-up: sign-ups for ${f.day(p)} aren't open yet, so ${what}.${how}`, quote: true });
     }
     return out;
@@ -223,8 +244,8 @@ export class Commands {
       const m = matchLists(listText, p.lists);
       if (m.unknown) return reply(`${f.day(p)} has no list called "${m.unknown}". Pick ${f.listChoices(p)}.`);
       if (m.lists.length === 0) {
-        const names = p.lists.map((l) => `\`!list in ${selector} ${l.name.toLowerCase()}\``);
-        return reply(`Which list? ${f.listChoices(p)}.\nSend ${names.join(", ")} or \`!list in ${selector} both\`.`);
+        const names = p.lists.map((l) => `\`!in ${selector} ${l.name.toLowerCase()}\``);
+        return reply(`Which list? ${f.listChoices(p)}.\nSend ${names.join(", ")} or \`!in ${selector} both\`.`);
       }
       lists = m.lists;
     }
@@ -236,8 +257,8 @@ export class Commands {
       if (x.spot === "main") return `You're in: *${x.list}*, #${x.position} of ${x.cap}.`;
       return `*${x.list}* is full. You're #${x.position} on the waitlist and move up on your own if a spot opens before the lock.`;
     });
-    if (r.created) lines.push(`${f.day(p)}. Can't make it? \`!list out ${selector}\`.`);
-    return reply(lines.join("\n"));
+    if (r.results.every((x) => x.already)) return reply(lines.join("\n"));
+    return [this.listOut(await this.fresh(p), lines.join("\n"))];
   }
 
   private async dropOut(selector: string, listText: string, confirm: boolean, req: Request): Promise<Out[]> {
@@ -263,7 +284,7 @@ export class Commands {
     const key = `${req.chatKey}|out|${p.event.id}`;
     if (late && !(confirm || this.pending.take(key, this.now.getTime()))) {
       this.pending.set(key, "yes", this.now.getTime());
-      const cmd = `!list out ${selector}${listText ? ` ${listText}` : ""} yes`;
+      const cmd = `!out ${selector}${listText ? ` ${listText}` : ""} yes`;
       return reply(`The list has locked, so this counts as a late drop. Still drop? Send \`${cmd}\`.`);
     }
 
@@ -271,7 +292,7 @@ export class Commands {
     if (r.dropped.length === 0) return reply(`You're not on ${f.day(p)}.`);
     const names = r.dropped.map((d) => `*${d.list}*`).join(" and ");
     const tail = r.dropped.some((d) => d.late) ? " It was a late drop, so nobody moves up on their own." : "";
-    return this.withPromotions(`Done: you're off ${names} for ${f.day(p)}.${tail}`, r.promoted);
+    return this.withPromotions(p, `Done: you're off ${names} for ${f.day(p)}.${tail}`, r.promoted);
   }
 
   // Phase 5: free-text questions (Gemini) -----------------------------------------
@@ -282,7 +303,7 @@ export class Commands {
     const r = await ask(this.deps.ai, text, practices, req.asker, this.deps.features, this.now);
     if (r.kind === "text") return reply(r.text);
     // The same door as a typed command, so the same checks. Never back into Gemini.
-    if (r.command.kind === "free") return reply("Sorry, I didn't get that. Try `!list help`.");
+    if (r.command.kind === "free") return reply("Sorry, I didn't get that. Try `!help`.");
     return this.run(r.command, req);
   }
 
@@ -305,7 +326,7 @@ export class Commands {
     if (p.stage === "cancelled" || p.stage === "past") return reply(`${f.day(p)} is ${p.stage === "past" ? "over" : "cancelled"}.`);
     if (p.stage !== "soon" && p.stage !== "waiting") return reply(`Sign-ups for ${f.day(p)} are already open.`);
     await this.deps.data.openEvent(p.event.id);
-    const post = this.deps.features.has("post") ? ` Post it with \`!list post ${selector}\`.` : "";
+    const post = this.deps.features.has("post") ? ` Post it with \`!post ${selector}\`.` : "";
     return reply(`Sign-ups for ${f.day(p)} are open.${post}`);
   }
 
@@ -322,7 +343,7 @@ export class Commands {
       this.pending.set(key, reason, now);
       const count = new Set(p.lists.flatMap((l) => [...l.main, ...l.waitlist].map((s) => s.member_id))).size;
       const why = reason ? ` Reason: "${reason}".` : "";
-      return reply(`Cancel ${f.day(p)}? I'll post it in the group (${f.players(count)} signed up).${why}\nSend \`!list cancel ${selector} yes\` within 10 minutes to confirm.`);
+      return reply(`Cancel ${f.day(p)}? I'll post it in the group (${f.players(count)} signed up).${why}\nSend \`!cancel ${selector} yes\` within 10 minutes to confirm.`);
     }
     const why = (reason || this.pending.take(key, now) || "").slice(0, 300);
     const n = await cancelQuietly(this.deps.data, p.event.id, why, who.board!.id, this.now);
@@ -355,14 +376,14 @@ export class Commands {
       words = words.slice(0, words.length - named.name.split(/\s+/).length);
     }
     const name = words.join(" ");
-    if (name.length < 2) return reply(`Who should I add? \`!list add ${selector} Jane Doe${p.lists.length > 1 ? ` ${p.lists[0].name.toLowerCase()}` : ""}\` (add \`waitlist\` for the waitlist).`);
+    if (name.length < 2) return reply(`Who should I add? \`!add ${selector} Jane Doe${p.lists.length > 1 ? ` ${p.lists[0].name.toLowerCase()}` : ""}\` (add \`waitlist\` for the waitlist).`);
     if (name.length > 80) return reply("That name is too long.");
-    if (!list) return reply(`Which list? ${f.listChoices(p)}. Send \`!list add ${selector} ${name} ${p.lists[0].name.toLowerCase()}\`.`);
+    if (!list) return reply(`Which list? ${f.listChoices(p)}. Send \`!add ${selector} ${name} ${p.lists[0].name.toLowerCase()}\`.`);
 
     const r = await addQuietly(this.deps.data, p.event.id, list.id, name, spot, who.board!.id, this.now);
     const where = r.spot === "main" ? "the main list" : "the waitlist";
     const over = r.spot === "main" && list.main.length + 1 > list.cap ? ` That's ${list.main.length + 1} of ${list.cap}.` : "";
-    return this.withPromotions(`Added *${name}* to ${where} for *${list.name}*, ${f.day(p)}.${over}`, r.promoted);
+    return this.withPromotions(p, `Added *${name}* to ${where} for *${list.name}*, ${f.day(p)}.${over}`, r.promoted);
   }
 
   /** shuffle_teams, then the draft teams. Sending them stays in the app. */
@@ -407,8 +428,8 @@ export class Commands {
     }
   }
 
-  /** The quoted reply, plus a line for everyone who moved up: an @mention if they linked WhatsApp, else their name. */
-  private withPromotions(text: string, promoted: Promotion[]): Out[] {
+  /** The reply, a line for everyone who moved up (an @mention if they linked WhatsApp, else their name), and the new list. */
+  private async withPromotions(p: Practice, text: string, promoted: Promotion[]): Promise<Out[]> {
     const mentions: string[] = [];
     const lines = promoted.map((x) => {
       const jid = this.deps.mentionFor?.(x.email) ?? null;
@@ -416,7 +437,7 @@ export class Commands {
       const who = jid ? `@${jid.split("@")[0]}` : `*${x.name}*`;
       return `⬆️ ${who} moves up from the waitlist: in for *${x.list}* (#${x.position} of ${x.cap}).`;
     });
-    return [{ text: [text, ...lines].join("\n"), quote: true, ...(mentions.length ? { mentions } : {}) }];
+    return [this.listOut(await this.fresh(p), [text, ...lines].join("\n"), mentions)];
   }
 
   // Helpers -----------------------------------------------------------------------
@@ -425,7 +446,7 @@ export class Commands {
   async find(selector: string): Promise<Practice | string> {
     if (!selector) return "Which practice? Add a day, like `thu`, `next` or `10/23`.";
     const p = pickPractice(selector, await this.deps.data.upcoming(this.now, 14), this.now);
-    return p ?? `I can't find a practice for "${selector}". Send \`!list\` to see what's coming up.`;
+    return p ?? `I can't find a practice for "${selector}". Send \`!week\` to see what's coming up.`;
   }
 
   /** The asker if they're on the board, or why not. */

@@ -22,7 +22,7 @@ export function isLinkingMessage(waId: string, text: string, state: LocalState) 
   return isStart(text) || state.flow(waId) !== null;
 }
 
-const isStart = (text: string) => /^(!list\s+)?link[.!]?$/i.test(text.trim());
+const isStart = (text: string) => /^(!\s*(list\s+)?)?link[.!]?$/i.test(text.trim());
 
 /**
  * Handles one DM. `waId` is the chat's ID (the flow and code limits are keyed
@@ -69,7 +69,7 @@ export async function handleLinking(waId: string, allIds: string[], text: string
       if (member) {
         state.saveLink(allIds, { email: flow.email, name: member.name, phone: member.phone });
         state.clearFlow(waId);
-        return `You're set, ${member.name.split(" ")[0]}! Go back to the group and use \`!list\` there.`;
+        return `You're set, ${member.name.split(" ")[0]}! Go back to the group and use \`!in\` / \`!list\` there.`;
       }
       state.setFlow(waId, { step: "name", email: flow.email });
       return "Thanks, that's you. You're new to The List: what's your full name?";
@@ -80,7 +80,7 @@ export async function handleLinking(waId: string, allIds: string[], text: string
       if (name.length < 2 || name.length > 80 || !/\p{L}/u.test(name)) return "Please send your full name.";
       state.saveLink(allIds, { email: flow.email, name, phone });
       state.clearFlow(waId);
-      return `You're set, ${name.split(" ")[0]}! Go back to the group and use \`!list\` there. You'll be added to the club's list when you first sign up.`;
+      return `You're set, ${name.split(" ")[0]}! Go back to the group and use \`!in\` / \`!list\` there. You'll be added to the club's list when you first sign up.`;
     }
 
     default: // a flow saved by an older version (it used to ask for a phone number)

@@ -9,19 +9,24 @@ A WhatsApp bot for [The List](../README.md). It sits in the club's WhatsApp grou
 
 Practices can be named loosely: `thu`, `thursday`, `next`, `today`, `tomorrow`, `10/23`, `oct 23`. Times are New York time.
 
+Every command is `!` plus a word, in any case. Messages starting with `!` that aren't a command (`!!!`, `!nice`) are ignored. The old `!list in thu` form still works.
+
 | Feature | Who | Command | Does |
 |---|---|---|---|
-| `read` | Anyone | `!list` / `!list help` | Upcoming practices with spots left; help |
-| `read` | Anyone | `!list thu` | Time, place, each list's count / cap and waitlist |
-| `read` | Member | `!list me` | Your spots and waitlist positions |
-| `post` | Board | `!list post thu` | Posts the practice. With `signup` on, it tells people to sign up right in the chat (`!list in thu`) and adds the web link only as a fallback. Without it, it's the app's **Copy WhatsApp post** text with the signed link |
-| `signup` | Member | `!list in thu [list]` | Signs you up (asks which list if there are several; `both` works) |
-| `signup` | Member | `!list out thu [list]` | Drops you (asks first if it would be a late drop). Whoever moves up is told in the same reply |
-| `board` | Board | `!list open thu` | Opens sign-ups now (the app's **Open sign-ups** button) |
-| `board` | Board | `!list cancel thu [reason]` | Asks to confirm, then `!list cancel thu yes` cancels and posts one notice in the group |
-| `board` | Board | `!list add thu Name [list] [waitlist]` | Adds a walk-in |
-| `board` | Board | `!list teams thu` | Shuffles teams and shows them. Send them from the app |
-| `ai` | Anyone | `@bot <question>` or `!list <anything else>` | Gemini answers, or picks one of the commands above and the bot runs it with the same checks |
+| `read` | Anyone | `!list` / `!list thu` | The practice with everyone's names, main list and waitlist (no day: the next practice) |
+| `read` | Anyone | `!week` | Upcoming practices with spots left |
+| `read` | Member | `!me` | Your spots and waitlist positions |
+| `read` | Anyone | `!help` | The commands (board ones only for the board) |
+| `post` | Board | `!post thu` | Posts the practice. With `signup` on, it tells people to sign up right in the chat (`!in thu`) and adds the web link only as a fallback. Without it, it's the app's **Copy WhatsApp post** text with the signed link |
+| `signup` | Member | `!in thu [list]` | Signs you up (asks which list if there are several; `both` works) |
+| `signup` | Member | `!out thu [list]` | Drops you (asks first if it would be a late drop). Whoever moves up is told in the same reply |
+| `board` | Board | `!open thu` | Opens sign-ups now (the app's **Open sign-ups** button) |
+| `board` | Board | `!cancel thu [reason]` | Asks to confirm, then `!cancel thu yes` cancels and posts one notice in the group |
+| `board` | Board | `!add thu Name [list] [waitlist]` | Adds a walk-in |
+| `board` | Board | `!teams thu` | Shuffles teams and shows them. Send them from the app |
+| `ai` | Anyone | `@bot <question>` | Gemini answers, or picks one of the commands above and the bot runs it with the same checks |
+
+**The full list follows every change.** After `!in`, `!out` and `!add`, the reply carries the practice's whole list with names. The bot then deletes its previous list message for that practice (also the one from `!list`), so only the newest list stays in the chat.
 
 Writes are off by default: `BOT_FEATURES=read`. Switch phases on one at a time, e.g. `read,post`, then `read,post,signup`, and so on.
 
@@ -29,7 +34,7 @@ Writes are off by default: `BOT_FEATURES=read`. Switch phases on one at a time, 
 
 The bot's number is a normal WhatsApp account driven by an unofficial library (Baileys), so WhatsApp can ban it. It behaves like a quiet person:
 
-- Only reads the groups named in `ALLOWED_GROUPS`, and only answers messages that start with `!list` or @mention it.
+- Only reads the groups named in `ALLOWED_GROUPS`, and only answers messages that start with `!` and a command word, or @mention it.
 - Replies quoted under the question, shows "typing…", answers one question at a time per chat, and keeps at least 2.5 s between its own messages (max 12 a minute). It never @mentions everyone and never messages anyone first.
 - In DMs it only answers someone who sent `link` (or is in the middle of linking).
 - Reconnects with backoff after a disconnect. If WhatsApp logs it out, it logs that loudly and stops (exit code 78, which the service doesn't restart).
@@ -62,7 +67,7 @@ The tests run offline: WhatsApp is behind the `Chat` interface (`src/chat.ts`), 
 cp .env.example .env   # SUPABASE_URL + SUPABASE_SECRET_KEY at least (a test project, not the club's!)
 npm run cli -- --as someone@example.com "!list thu"
 npm run cli -- --as someone@example.com          # interactive: type commands, Ctrl-D to quit
-npm run cli -- --as new@example.com --name "New Person" --phone +12125550148 --features read,signup "!list in thu"
+npm run cli -- --as new@example.com --name "New Person" --phone +12125550148 --features read,signup "!in thu"
 ```
 
 `--as` is the member's email (board commands work if it's in `board_members`). Writes are real, so keep `BOT_FEATURES=read` against the live project.
@@ -74,7 +79,7 @@ Copy `.env.example` to `.env` (gitignored; never commit it):
 | Setting | What |
 |---|---|
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Same project and secret key as the app (Supabase → Project Settings → API Keys) |
-| `DROP_LINK_SECRET` | The app's value, so the links `!list post` makes work |
+| `DROP_LINK_SECRET` | The app's value, so the links `!post` makes work |
 | `SITE_URL` | The app's address |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Club Gmail, only for the 6-digit linking codes. Empty = print to the terminal |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Google AI Studio key (free tier). The model defaults to `gemini-flash-latest` |
@@ -127,7 +132,7 @@ gcloud compute ssh listbot --zone us-east1-b -- sudo systemctl restart listbot
 
 ### First live test
 
-- `!list` and `!list me` from a member whose number shows and from one whose number is hidden (`@lid`).
+- `!list` and `!me` from a member whose number shows and from one whose number is hidden (`@lid`).
 - Linking by DM, start to finish.
 - With `signup` on: a drop that moves someone up. Check the @mention shows as their name in WhatsApp (the bot mentions their hidden ID when it has one, else their phone).
 - Check the `emails` table: nothing from the bot's actions should be left there.

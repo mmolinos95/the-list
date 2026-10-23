@@ -1,12 +1,13 @@
 import { parseSelector, splitSelector } from "./pick";
 
-// Turning a message into a command. Only messages that start with "!list"
-// (any case) or @mention the bot get this far; see triggerBody().
+// Turning a message into a command. Only messages that start with "!" and a
+// command word (any case), or @mention the bot, get this far; see triggerBody().
 
 export type Command =
-  | { kind: "overview" }
+  | { kind: "week" }
   | { kind: "help" }
-  | { kind: "details"; practice: string }
+  /** The practice's full list, with names. An empty practice means the next one. */
+  | { kind: "list"; practice: string }
   | { kind: "me" }
   | { kind: "post"; practice: string }
   | { kind: "in"; practice: string; lists: string }
@@ -18,6 +19,11 @@ export type Command =
   | { kind: "free"; text: string };
 
 const KEYWORDS: Record<string, Command["kind"]> = {
+  list: "list",
+  who: "list",
+  week: "week",
+  upcoming: "week",
+  practices: "week",
   help: "help",
   me: "me",
   my: "me",
@@ -36,16 +42,28 @@ const KEYWORDS: Record<string, Command["kind"]> = {
   team: "teams",
 };
 
+/** The command word a message starts with ("in" for "In mon", "sign" + "up"), or null. */
+function commandWord(text: string): Command["kind"] | null {
+  const [first = "", second = ""] = text.trim().split(/\s+/);
+  const word = first.toLowerCase().replace(/[.!?:,]+$/, "");
+  if (word === "sign" && /^up\b/i.test(second)) return "in";
+  return KEYWORDS[word] ?? null;
+}
+
 /**
- * What follows the trigger, or null if the message isn't for the bot.
+ * What follows the "!", or null if the message isn't for the bot. Only real
+ * commands count ("!in mon", "!LIST"), so "!!!" or "!nice" are ignored.
  * `mentionsBot` comes from WhatsApp; the adapter strips the @mention itself.
  */
 export function triggerBody(text: string, mentionsBot: boolean): string | null {
   const t = text.trim();
-  const m = t.match(/^!list(?=$|[\s:,])[\s:,]*/i);
-  if (m) return t.slice(m[0].length).trim();
-  if (mentionsBot) return t.replace(/^!list\b/i, "").trim();
-  return null;
+  const bang = t.match(/^!\s*/);
+  if (bang) {
+    const body = t.slice(bang[0].length).trim();
+    if (commandWord(body)) return body;
+    return mentionsBot ? body : null;
+  }
+  return mentionsBot ? t : null;
 }
 
 /** Splits off a trailing "yes" (confirmations). */
@@ -55,21 +73,24 @@ function confirmTail(text: string) {
 }
 
 export function parseCommand(body: string): Command {
-  const text = body.trim();
-  if (!text) return { kind: "overview" };
-  if (parseSelector(text)) return { kind: "details", practice: text };
+  let text = body.trim();
+  // The old "!list in mon" form: "list" followed by another command.
+  if (/^list\s/i.test(text) && commandWord(text.replace(/^list\s+/i, "")) && !/^list\s+list\b/i.test(text)) text = text.replace(/^list\s+/i, "");
+  if (!text) return { kind: "week" };
+  if (parseSelector(text)) return { kind: "list", practice: text };
 
   const [first, ...restWords] = text.split(/\s+/);
-  let kind = KEYWORDS[first.toLowerCase().replace(/[.!?:]+$/, "")];
+  let kind = KEYWORDS[first.toLowerCase().replace(/[.!?:,]+$/, "")];
   let rest = restWords.join(" ");
   if (!kind && /^sign$/i.test(first) && /^up\b/i.test(rest)) {
     kind = "in";
     rest = rest.replace(/^up\s*/i, "");
   }
   if (!kind) return { kind: "free", text };
-  if (kind === "help" || kind === "me") return rest && !/^(please|pls)$/i.test(rest) ? { kind: "free", text } : { kind };
+  const bare = !rest || /^(please|pls)$/i.test(rest);
+  if (kind === "help" || kind === "me" || kind === "week") return bare ? { kind } : { kind: "free", text };
 
-  // "!list in" with no practice still counts as the command; the handler asks which one.
+  // A command with no practice still counts; the handler asks which (or, for !list, takes the next).
   const split = splitSelector(rest);
   if (!split && rest) return { kind: "free", text };
   const practice = split?.selector ?? "";
@@ -87,6 +108,7 @@ export function parseCommand(body: string): Command {
     }
     case "add":
       return { kind, practice, rest: after };
+    case "list":
     case "post":
     case "open":
     case "teams":

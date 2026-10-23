@@ -20,10 +20,12 @@ export type IncomingMessage = {
 };
 
 export interface Chat {
-  /** Replies quoted under the message. `mentions` are WhatsApp IDs written as "@<number>" in the text. */
-  reply(to: IncomingMessage, text: string, mentions?: string[]): Promise<void>;
-  /** A plain message in a chat (the board's "!list post", a cancellation notice). */
-  send(chatId: string, text: string, mentions?: string[]): Promise<void>;
+  /** Replies quoted under the message. `mentions` are WhatsApp IDs written as "@<number>" in the text. Resolves to the sent message's id. */
+  reply(to: IncomingMessage, text: string, mentions?: string[]): Promise<string | null>;
+  /** A plain message in a chat (the board's "!post", a cancellation notice). Resolves to the sent message's id. */
+  send(chatId: string, text: string, mentions?: string[]): Promise<string | null>;
+  /** Deletes one of the bot's own messages for everyone. */
+  delete(chatId: string, msgId: string): Promise<void>;
   /** Shows or clears "typing…". */
   typing(chatId: string, on: boolean): Promise<void>;
 }
@@ -75,6 +77,7 @@ export function pacedChat(chat: Chat, pacer: Pacer): Chat {
   return {
     reply: (to, text, mentions) => pacer.run(() => chat.reply(to, text, mentions)),
     send: (chatId, text, mentions) => pacer.run(() => chat.send(chatId, text, mentions)),
+    delete: (chatId, msgId) => pacer.run(() => chat.delete(chatId, msgId)),
     typing: (chatId, on) => chat.typing(chatId, on),
   };
 }
