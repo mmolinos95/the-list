@@ -1,3 +1,4 @@
+import { timeRange } from "../../src/lib/time";
 import { ask, type AiModel } from "./ai";
 import type { Feature } from "./config";
 import type { Data, Practice } from "./data/types";
@@ -42,6 +43,8 @@ export type CommandDeps = {
   mentionFor?: (email: string) => string | null;
   /** Recent exchanges per chat, for Gemini's follow-ups (memory.ts). */
   memory?: ChatMemory;
+  /** The club FAQ for Gemini (faq.ts); "" for none. */
+  faq?: string;
   /** Practice forecasts for Gemini (weather.ts). */
   weather?: Pick<Weather, "at">;
 };
@@ -109,6 +112,7 @@ export const FEATURE_OF: Record<Command["kind"], Feature> = {
   help: "read",
   list: "read",
   me: "read",
+  where: "read",
   post: "post",
   in: "signup",
   out: "signup",
@@ -149,6 +153,8 @@ export class Commands {
         return this.list(cmd.practice);
       case "me":
         return this.me(req);
+      case "where":
+        return this.where(cmd.practice);
       case "post":
         return this.post(cmd.practice, req);
       case "in":
@@ -193,6 +199,7 @@ export class Commands {
       "`!list thu` one practice (also `next`, `tomorrow`, `10/23`)",
       "`!week` upcoming practices",
       "`!me` your spots",
+      "`!where` where the next practice is, with a map (or `!where thu`)",
     ];
     if (has("signup")) lines.push("`!in` sign up for the open practice (or `!in thu [list]`)", "`!out` drop out (or `!out thu [list]`)");
     if (has("ai")) lines.push("Or @mention me with a question.");
@@ -238,6 +245,15 @@ export class Commands {
   /** The practice as it is now, after a write. */
   private async fresh(p: Practice) {
     return (await this.deps.data.practice(p.event.id, this.now)) ?? p;
+  }
+
+  /** Where a practice is, with a Google Maps link. No practice named means the next one. */
+  private async where(selector: string): Promise<Out[]> {
+    const p = await this.find(selector || "next");
+    if (typeof p === "string") return reply(p);
+    const lines = [`*${p.event.title} · ${f.day(p)}*`, `${timeRange(p.event.starts_at, p.event.ends_at)} · ${p.event.location}`, f.mapsUrl(p.event.location)];
+    if (p.stage === "cancelled") lines.push("_This practice is cancelled._");
+    return reply(lines.join("\n"));
   }
 
   private async me(req: Request): Promise<Out[]> {
@@ -359,7 +375,7 @@ export class Commands {
     const practices = await this.deps.data.upcoming(this.now, 14);
     const memory = this.deps.memory;
     const weather = await this.forecasts(practices);
-    const r = await ask(this.deps.ai, text, practices, req.asker, this.deps.features, this.now, undefined, memory?.forPrompt(chatOf(req), senderOf(req)) ?? "", !!req.replyToBot, weather);
+    const r = await ask(this.deps.ai, text, practices, req.asker, this.deps.features, this.now, undefined, memory?.forPrompt(chatOf(req), senderOf(req)) ?? "", !!req.replyToBot, weather, this.deps.faq ?? "");
     if (r.kind === "silent") return [];
     if (r.kind === "text") {
       memory?.remember(chatOf(req), senderOf(req), text, r.text);

@@ -113,6 +113,9 @@ export function listChoices(p: Practice) {
   return names.length > 1 ? `${names.slice(0, -1).join(", ")} or ${names.at(-1)}` : names[0] ?? "";
 }
 
+/** A Google Maps search link for a practice's place. */
+export const mapsUrl = (location: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+
 /** One change to a practice's list, for the batched list message (batch.ts). */
 export type ChangeItem = {
   kind: "in" | "wait" | "out" | "up";

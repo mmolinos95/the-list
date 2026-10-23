@@ -78,7 +78,7 @@ describe("Gemini (phase 5)", () => {
 
   it("offers only the switched-on features", async () => {
     const asker = await askerOf(data, "pres@example.com");
-    expect(toolsFor(asker, new Set(["read", "ai"])).map((t) => t.name)).toEqual(["upcoming_practices", "practice_details", "my_spots", "help"]);
+    expect(toolsFor(asker, new Set(["read", "ai"])).map((t) => t.name)).toEqual(["upcoming_practices", "practice_details", "my_spots", "where", "help"]);
     expect(toolsFor(asker, new Set(FEATURES))).toHaveLength(TOOLS.length);
     expect(toolsFor(null, new Set(FEATURES)).some((t) => t.name === "add_walk_in")).toBe(false);
   });

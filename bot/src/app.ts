@@ -4,6 +4,7 @@ import type { Config } from "./config";
 import { supabaseData } from "./data/supabase";
 import type { Data } from "./data/types";
 import { mailerFor, type Mailer } from "./mailer";
+import { loadFaq } from "./faq";
 import { geminiModel } from "./gemini";
 import { ChatMemory } from "./memory";
 import { LocalState } from "./state";
@@ -28,6 +29,7 @@ export function buildApp(config: Config, overrides: Partial<Pick<App, "data" | "
     mentionFor: (email) => state.mentionFor(email),
     memory: new ChatMemory(),
     weather: new Weather(),
+    faq: loadFaq(),
   });
   return { config, data, state, mailer, commands };
 }

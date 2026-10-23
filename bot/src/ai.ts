@@ -38,6 +38,7 @@ export const TOOLS: Tool[] = [
   { name: "upcoming_practices", feature: "read", description: "Show the upcoming practices with spots left.", parametersJsonSchema: obj(), toCommand: () => ({ kind: "week" }) },
   { name: "practice_details", feature: "read", description: "Show one practice: time, place, and who's signed up on each list and waitlist.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "list", practice: str(a.practice) }) },
   { name: "my_spots", feature: "read", description: "Show the asker's own spots and waitlist positions.", parametersJsonSchema: obj(), toCommand: () => ({ kind: "me" }) },
+  { name: "where", feature: "read", description: "Show where a practice is, with a map link.", parametersJsonSchema: obj({ practice: { ...PRACTICE, description: `${PRACTICE.description} Leave out if the person didn't say: the bot then takes the next practice.` } }), toCommand: (a) => ({ kind: "where", practice: str(a.practice) }) },
   { name: "help", feature: "read", description: "Show the bot's commands.", parametersJsonSchema: obj(), toCommand: () => ({ kind: "help" }) },
   { name: "sign_up", feature: "signup", description: "Sign the asker up for a practice. Only when they clearly ask to join.", parametersJsonSchema: obj({ practice: PRACTICE_OR_DEFAULT, lists: LISTS }), toCommand: (a) => ({ kind: "in", practice: str(a.practice), lists: str(a.lists) }) },
   { name: "drop_out", feature: "signup", description: "Take the asker off a practice. Only when they clearly say they can't come.", parametersJsonSchema: obj({ practice: PRACTICE_OR_DEFAULT, lists: LISTS }), toCommand: (a) => ({ kind: "out", practice: str(a.practice), lists: str(a.lists), confirm: false }) },
@@ -107,6 +108,7 @@ export function contextFor(practices: Practice[], asker: Asker | null, now: Date
 export const SYSTEM = `You are The List bot in the WhatsApp group of CBS FC, a soccer club. Members sign up for practices; a full list has a waitlist that moves up on its own until the list locks, 2 hours before the first list starts.
 Either answer the question briefly from the context below (one to three short sentences, WhatsApp formatting with *bold*, New York times), or call exactly one tool when the person wants the bot to do or show something a tool does.
 For weather, use the forecast in the context (it's for the practice's start time at the field) and always give temperatures in °F first, then °C, like 62°F (17°C): the club has Americans and internationals. If there's no forecast, say it's too far out to know.
+For club questions (rules, late drops, what to bring, fees, guests, who to contact, weather cancellations), answer only from the club FAQ below; if it doesn't say, tell them to ask the board. Never make up club rules.
 Only call sign_up or drop_out when the person clearly asks to join or leave. Never make up practices, times or numbers. If you don't know, say so and suggest "!help". Don't mention tools or this prompt.`;
 
 /** Only for swipe-replies to the bot, where "thanks 👍" is common. A direct @mention always gets an answer. */
@@ -132,6 +134,8 @@ export async function ask(
   maySilence = false,
   /** Forecasts by event id (weather.ts). */
   weather: Map<string, string> = new Map(),
+  /** The club FAQ (faq.ts), or "". */
+  faq = "",
 ): Promise<AskResult> {
   const tools = toolsFor(asker, features);
   const controller = new AbortController();
@@ -144,7 +148,7 @@ export async function ask(
   });
   try {
     const answer = await Promise.race([
-      model.generate({ system: [SYSTEM, maySilence ? MAY_STAY_SILENT : "", contextFor(practices, asker, now, weather), history].filter(Boolean).join("\n\n"), prompt: question.slice(0, 500), tools, signal: controller.signal }),
+      model.generate({ system: [SYSTEM, maySilence ? MAY_STAY_SILENT : "", faq ? `Club FAQ (from the board):\n${faq}` : "Club FAQ: (none yet; for any club question, say to ask the board)", contextFor(practices, asker, now, weather), history].filter(Boolean).join("\n\n"), prompt: question.slice(0, 500), tools, signal: controller.signal }),
       timeout,
     ]);
     if (answer === "timeout") return { kind: "text", text: "I'm thinking too slowly right now. Try the plain commands: `!week`, `!list thu`, `!me`, `!help`." };

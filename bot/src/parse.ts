@@ -9,6 +9,8 @@ export type Command =
   /** The practice's full list, with names. An empty practice means the next one. */
   | { kind: "list"; practice: string }
   | { kind: "me" }
+  /** Where a practice is, with a map link. An empty practice means the next one. */
+  | { kind: "where"; practice: string }
   | { kind: "post"; practice: string }
   | { kind: "in"; practice: string; lists: string }
   | { kind: "out"; practice: string; lists: string; confirm: boolean }
@@ -29,6 +31,9 @@ const KEYWORDS: Record<string, Command["kind"]> = {
   my: "me",
   mine: "me",
   status: "me",
+  where: "where",
+  location: "where",
+  map: "where",
   post: "post",
   in: "in",
   join: "in",
@@ -113,6 +118,7 @@ export function parseCommand(body: string): Command {
     case "add":
       return { kind, practice, rest: after };
     case "list":
+    case "where":
     case "post":
     case "open":
     case "teams":

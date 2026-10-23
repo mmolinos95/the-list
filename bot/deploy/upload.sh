@@ -17,7 +17,7 @@ npm ci
 npm run build
 
 TARBALL="$(mktemp -d)/listbot.tgz"
-tar czf "$TARBALL" dist package.json package-lock.json deploy/listbot.service
+tar czf "$TARBALL" dist package.json package-lock.json FAQ.md deploy/listbot.service
 gcloud compute scp "$TARBALL" "$VM:/tmp/listbot.tgz" --zone "$ZONE"
 
 if [ "${1:-}" = "--env" ]; then
