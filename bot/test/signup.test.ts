@@ -162,6 +162,13 @@ describe("notifications are WhatsApp only", () => {
       text: expect.stringMatching(/^Done: you're off \*Games\* for .*\.\n⬆️ @98765 moves up from the waitlist: in for \*Games\* \(#1 of 1\)\.\n\n[\s\S]*1\. Ben Ode\n_Waitlist_\n1\. Cy Fox/),
       mentions: ["98765@lid"],
       listOf: ev.id,
+      change: {
+        eventId: ev.id,
+        items: [
+          { kind: "out", name: "Ana Diaz", list: "Games" },
+          { kind: "up", name: "Ben Ode", list: "Games", position: 1, mention: "98765@lid" },
+        ],
+      },
     });
     expect(await emails(ev.id)).toEqual([]);
 

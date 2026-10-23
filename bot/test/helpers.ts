@@ -1,4 +1,5 @@
 import { freshDb, type Db } from "../../tests/db/harness";
+import type { Timers } from "../src/batch";
 import type { Chat, IncomingMessage } from "../src/chat";
 import { Commands, type CommandDeps } from "../src/commands";
 import { FEATURES, type Feature } from "../src/config";
@@ -133,4 +134,33 @@ export function msg(over: Partial<IncomingMessage> = {}): IncomingMessage {
     timestamp: Math.floor(Date.now() / 1000),
     ...over,
   };
+}
+
+/** A fake clock for the batcher's timers: `advance` runs what's due, in order, and waits for it to finish. */
+export class FakeClock implements Timers {
+  t = 0;
+  private due: { at: number; fn: () => unknown; id: number }[] = [];
+  private n = 0;
+  set(fn: () => unknown, ms: number) {
+    const id = ++this.n;
+    this.due.push({ at: this.t + ms, fn, id });
+    return id;
+  }
+  clear(id: unknown) {
+    this.due = this.due.filter((x) => x.id !== id);
+  }
+  async advance(ms: number) {
+    const end = this.t + ms;
+    for (;;) {
+      const next = this.due.filter((x) => x.at <= end).sort((a, b) => a.at - b.at || a.id - b.id)[0];
+      if (!next) break;
+      this.due = this.due.filter((x) => x !== next);
+      this.t = next.at;
+      await next.fn();
+    }
+    this.t = end;
+  }
+  get pending() {
+    return this.due.length;
+  }
 }

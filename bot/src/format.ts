@@ -112,3 +112,43 @@ export function listChoices(p: Practice) {
   const names = p.lists.map((l) => `*${l.name}* (${listTime(l)})`);
   return names.length > 1 ? `${names.slice(0, -1).join(", ")} or ${names.at(-1)}` : names[0] ?? "";
 }
+
+/** One change to a practice's list, for the batched list message (batch.ts). */
+export type ChangeItem = {
+  kind: "in" | "wait" | "out" | "up";
+  name: string;
+  list: string;
+  position?: number;
+  /** WhatsApp ID to @mention (people who moved up and linked their WhatsApp). */
+  mention?: string;
+  late?: boolean;
+};
+
+const SECTIONS: [ChangeItem["kind"], string][] = [
+  ["in", "✅ In"],
+  ["wait", "⏳ Waitlist"],
+  ["out", "❌ Out"],
+  ["up", "⬆️ Moved up from the waitlist"],
+];
+
+/**
+ * What changed in a batch, one line per kind, names in the order things happened:
+ *   ✅ In: Ana Diaz (#12), Ben Ode (#13)
+ *   ❌ Out: Cy Fox
+ *   ⬆️ Moved up from the waitlist: @Dee (#40)
+ * List names are added when the practice has more than one list.
+ */
+export function changeSummary(items: ChangeItem[], manyLists: boolean): { text: string; mentions: string[] } {
+  const label = (x: ChangeItem) => {
+    const who = x.mention ? `@${x.mention.split("@")[0]}` : x.name;
+    const where = [manyLists ? x.list : "", x.position ? `#${x.position}` : ""].filter(Boolean).join(" ");
+    const notes = [where, x.late ? "late drop" : ""].filter(Boolean).join(", ");
+    return notes ? `${who} (${notes})` : who;
+  };
+  const lines = SECTIONS.map(([kind, title]) => {
+    const names = items.filter((x) => x.kind === kind).map(label);
+    return names.length ? `${title}: ${names.join(", ")}` : "";
+  }).filter(Boolean);
+  const mentions = [...new Set(items.map((x) => x.mention).filter((m): m is string => !!m))];
+  return { text: lines.join("\n"), mentions };
+}

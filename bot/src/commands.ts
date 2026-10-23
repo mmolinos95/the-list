@@ -2,6 +2,7 @@ import { ask, type AiModel } from "./ai";
 import type { Feature } from "./config";
 import type { Data, Practice } from "./data/types";
 import * as f from "./format";
+import type { ChangeItem } from "./format";
 import type { Asker } from "./identity";
 import type { Command } from "./parse";
 import { linkUrl } from "./phone";
@@ -19,8 +20,14 @@ import { chatPost, selectorFor, sharePost } from "./share";
  * One message to send. `mentions` are WhatsApp IDs written as "@<number>" in the text.
  * `listOf` marks a message carrying a practice's full list (an event id): the bot
  * deletes its previous one for that practice, so only the newest stays in the chat.
+ * `change` marks a list change (sign-up, drop-out, walk-in): in WhatsApp the bot
+ * batches those into one list message (batch.ts) instead of sending `text`; the
+ * terminal (cli.ts) just prints `text`.
  */
-export type Out = { text: string; quote: boolean; mentions?: string[]; listOf?: string };
+export type Out = { text: string; quote: boolean; mentions?: string[]; listOf?: string; change?: ListChange };
+
+/** What one write changed on a practice's list. */
+export type ListChange = { eventId: string; items: ChangeItem[] };
 
 export type CommandDeps = {
   data: Data;
@@ -220,6 +227,14 @@ export class Commands {
     return { text: top ? `${top}\n\n${text}` : text, quote: true, listOf: p.event.id, ...(mentions.length ? { mentions } : {}) };
   }
 
+  /** The batched list message: what changed (in order), then the practice's full list as it is now. */
+  async changeMessage(eventId: string, items: ChangeItem[]): Promise<Out | null> {
+    const p = await this.deps.data.practice(eventId, this.now);
+    if (!p) return null;
+    const { text, mentions } = f.changeSummary(items, p.lists.length > 1);
+    return this.listOut(p, text, mentions);
+  }
+
   /** The practice as it is now, after a write. */
   private async fresh(p: Practice) {
     return (await this.deps.data.practice(p.event.id, this.now)) ?? p;
@@ -292,7 +307,11 @@ export class Commands {
       return `*${x.list}* is full. You're #${x.position} on the waitlist and move up on your own if a spot opens before the lock.`;
     });
     if (r.results.every((x) => x.already)) return reply(lines.join("\n"));
-    return [this.listOut(await this.fresh(p), lines.join("\n"))];
+    const items: ChangeItem[] = r.results
+      .filter((x) => !x.already)
+      .sort((a, b) => order(a.list_id) - order(b.list_id))
+      .map((x) => ({ kind: x.spot === "main" ? "in" : "wait", name: who.name!, list: x.list, position: x.position }));
+    return [{ ...this.listOut(await this.fresh(p), lines.join("\n")), change: { eventId: p.event.id, items } }];
   }
 
   private async dropOut(selector: string, listText: string, confirm: boolean, req: Request): Promise<Out[]> {
@@ -328,7 +347,9 @@ export class Commands {
     if (r.dropped.length === 0) return reply(`You're not on ${f.day(p)}.`);
     const names = r.dropped.map((d) => `*${d.list}*`).join(" and ");
     const tail = r.dropped.some((d) => d.late) ? " It was a late drop, so nobody moves up on their own." : "";
-    return this.withPromotions(p, `Done: you're off ${names} for ${f.day(p)}.${tail}`, r.promoted);
+    const name = who.member?.name ?? who.name ?? "Someone";
+    const items: ChangeItem[] = r.dropped.map((d) => ({ kind: "out", name, list: d.list, ...(d.late ? { late: true } : {}) }));
+    return this.withPromotions(p, `Done: you're off ${names} for ${f.day(p)}.${tail}`, r.promoted, items);
   }
 
   // Phase 5: free-text questions (Gemini) -----------------------------------------
@@ -444,7 +465,9 @@ export class Commands {
     const r = await addQuietly(this.deps.data, p.event.id, list.id, name, spot, who.board!.id, this.now);
     const where = r.spot === "main" ? "the main list" : "the waitlist";
     const over = r.spot === "main" && list.main.length + 1 > list.cap ? ` That's ${list.main.length + 1} of ${list.cap}.` : "";
-    return this.withPromotions(p, `Added *${name}* to ${where} for *${list.name}*, ${f.day(p)}.${over}`, r.promoted);
+    const position = (r.spot === "main" ? list.main.length : list.waitlist.length) + 1;
+    const item: ChangeItem = { kind: r.spot === "main" ? "in" : "wait", name, list: list.name, position };
+    return this.withPromotions(p, `Added *${name}* to ${where} for *${list.name}*, ${f.day(p)}.${over}`, r.promoted, [item]);
   }
 
   /** shuffle_teams, then the draft teams. Sending them stays in the app. */
@@ -490,15 +513,16 @@ export class Commands {
   }
 
   /** The reply, a line for everyone who moved up (an @mention if they linked WhatsApp, else their name), and the new list. */
-  private async withPromotions(p: Practice, text: string, promoted: Promotion[]): Promise<Out[]> {
+  private async withPromotions(p: Practice, text: string, promoted: Promotion[], items: ChangeItem[]): Promise<Out[]> {
     const mentions: string[] = [];
     const lines = promoted.map((x) => {
       const jid = this.deps.mentionFor?.(x.email) ?? null;
       if (jid) mentions.push(jid);
+      items.push({ kind: "up", name: x.name, list: x.list, position: x.position, ...(jid ? { mention: jid } : {}) });
       const who = jid ? `@${jid.split("@")[0]}` : `*${x.name}*`;
       return `⬆️ ${who} moves up from the waitlist: in for *${x.list}* (#${x.position} of ${x.cap}).`;
     });
-    return [this.listOut(await this.fresh(p), [text, ...lines].join("\n"), mentions)];
+    return [{ ...this.listOut(await this.fresh(p), [text, ...lines].join("\n"), mentions), change: { eventId: p.event.id, items } }];
   }
 
   // Helpers -----------------------------------------------------------------------
