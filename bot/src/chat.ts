@@ -15,6 +15,8 @@ export type IncomingMessage = {
   /** Text with any @mention of the bot removed. */
   text: string;
   mentionsBot: boolean;
+  /** A swipe-reply to one of the bot's own messages: counts as talking to the bot. */
+  repliesToBot?: boolean;
   /** Seconds since epoch. */
   timestamp: number;
 };

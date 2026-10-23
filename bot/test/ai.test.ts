@@ -5,6 +5,7 @@ import { FEATURES } from "../src/config";
 import type { Data } from "../src/data/types";
 import type { Asker } from "../src/identity";
 import { parseCommand } from "../src/parse";
+import { ChatMemory } from "../src/memory";
 import { askerOf, board, commandsFor, dataFor, freshDb, member, practice, type Db } from "./helpers";
 
 /** A fake Gemini: records what it was sent, answers with a script. */
@@ -103,5 +104,39 @@ describe("Gemini (phase 5)", () => {
     expect(ctx).toMatch(/Not linked yet/);
     const asker: Asker = { email: "x@example.com", name: "X Person", phone: "+12125550000", member: null, board: null };
     expect(contextFor([], asker, new Date())).not.toMatch(/X Person|x@example|\+1212/);
+  });
+
+  it("stays quiet when Gemini says no reply is needed, but only on a reply to the bot", async () => {
+    const model = new FakeModel(() => ({ text: "-" }));
+    const commands = commandsFor(data, [...FEATURES], { ai: model });
+    expect(await commands.run(parseCommand("thanks!"), { asker: null, chatKey: "chat|x", replyToBot: true })).toEqual([]);
+    expect(model.calls.at(-1)!.system).toMatch(/answer with exactly: -/);
+    // A direct @mention always gets an answer.
+    const direct = await commands.run(parseCommand("thanks!"), { asker: null, chatKey: "chat|x" });
+    expect(direct[0].text).toMatch(/didn't get that/);
+    expect(model.calls.at(-1)!.system).not.toMatch(/answer with exactly: -/);
+  });
+
+  it("remembers recent exchanges per chat for follow-ups, but never a command's output", async () => {
+    let t = 1_000_000;
+    const memory = new ChatMemory(() => t);
+    const model = new FakeModel((prompt) => (prompt.includes("who") ? { call: { name: "practice_details", args: { practice: ev.slug } } } : { text: "Friday is open too." }));
+    const commands = commandsFor(data, [...FEATURES], { ai: model, memory });
+    const ana = { asker: await askerOf(data, "ana@example.com"), chatKey: "chat|ana" };
+    const pat = { asker: await askerOf(data, "pres@example.com"), chatKey: "chat|pat" };
+
+    const shown = await commands.run(parseCommand("who is coming?"), ana);
+    expect(shown[0].text).toMatch(/Zed Othermember/); // the list itself goes to WhatsApp…
+    await commands.run(parseCommand("me"), pat);
+    await commands.run(parseCommand("and friday?"), ana);
+
+    const system = model.calls.at(-1)!.system;
+    expect(system).toContain(`The person asking now: "who is coming?" → bot: (ran !list ${ev.slug} and showed the result)`);
+    expect(system).toContain(`Someone else: "!me" → bot: (ran it and showed the result)`);
+    expect(system).not.toMatch(/Zed|Othermember|Secretname|Yu Waiting/); // …but never reaches Gemini
+    // Another chat has its own memory; old exchanges are forgotten.
+    expect(memory.forPrompt("other", "ana")).toBe("");
+    t += 31 * 60_000;
+    expect(memory.forPrompt("chat", "ana")).toBe("");
   });
 });

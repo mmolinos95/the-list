@@ -121,6 +121,12 @@ describe("the router", () => {
     expect(chat.deleted).toEqual(["sent1"]);
   });
 
+  it("treats a reply to the bot like an @mention", async () => {
+    const { bot, chat } = setup();
+    await bot.handle(msg({ text: "help", repliesToBot: true }));
+    expect(chat.out[0].text).toMatch(/The List bot/);
+  });
+
   it("ignores ! messages that aren't commands", async () => {
     const { bot, chat } = setup();
     for (const text of ["!!!", "!nice", "!lol thu"]) await bot.handle(msg({ text }));

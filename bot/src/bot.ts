@@ -36,7 +36,7 @@ export class Bot {
 
     if (msg.isGroup) {
       if (!msg.groupName || !this.deps.allowedGroups.includes(msg.groupName)) return Promise.resolve();
-      const body = triggerBody(msg.text, msg.mentionsBot);
+      const body = triggerBody(msg.text, msg.mentionsBot || !!msg.repliesToBot);
       if (body === null) return Promise.resolve();
       return this.queue.push(msg.chatId, () => this.answer(msg, () => this.groupCommand(msg, body)));
     }
@@ -74,7 +74,8 @@ export class Bot {
   private async groupCommand(msg: IncomingMessage, body: string) {
     const { data, state, commands } = this.deps;
     const asker = await whoIs(msg.senderIds, msg.senderPhone, data, state);
-    return commands.run(parseCommand(body), { asker, chatKey: `${msg.chatId}|${msg.senderIds[0]}` });
+    const replyToBot = !!msg.repliesToBot && !msg.mentionsBot;
+    return commands.run(parseCommand(body), { asker, chatKey: `${msg.chatId}|${msg.senderIds[0]}`, replyToBot });
   }
 
   private async linking(msg: IncomingMessage) {

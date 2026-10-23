@@ -1,3 +1,4 @@
+import { DEFAULT_MODELS } from "./gemini";
 import { resolve } from "node:path";
 
 // Settings come from bot/.env (gitignored) or the environment. See .env.example.
@@ -57,7 +58,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env, opts: { needSup
     gmailUser: blank(env.GMAIL_USER),
     gmailAppPassword: blank(env.GMAIL_APP_PASSWORD),
     geminiApiKey: blank(env.GEMINI_API_KEY),
-    geminiModel: blank(env.GEMINI_MODEL) ?? "gemini-flash-latest",
+    geminiModel: blank(env.GEMINI_MODEL) ?? DEFAULT_MODELS,
     botPhone: phone,
     allowedGroups: (env.ALLOWED_GROUPS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
     features: parseFeatures(env.BOT_FEATURES),

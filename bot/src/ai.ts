@@ -26,6 +26,7 @@ export interface AiModel {
 }
 
 const PRACTICE = { type: "string", description: 'Which practice: its slug from the context (best), a weekday like "thu", a date like "10/23", "today", "tomorrow" or "next".' };
+const PRACTICE_OR_DEFAULT = { ...PRACTICE, description: `${PRACTICE.description} Leave out if the person didn't say: the bot then takes the open practice.` };
 const LISTS = { type: "string", description: 'List name(s), e.g. "games", or "both". Leave out if the person didn\'t say.' };
 const obj = (properties: Record<string, unknown> = {}, required: string[] = []) => ({ type: "object", properties, required });
 
@@ -38,10 +39,10 @@ export const TOOLS: Tool[] = [
   { name: "practice_details", feature: "read", description: "Show one practice: time, place, and who's signed up on each list and waitlist.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "list", practice: str(a.practice) }) },
   { name: "my_spots", feature: "read", description: "Show the asker's own spots and waitlist positions.", parametersJsonSchema: obj(), toCommand: () => ({ kind: "me" }) },
   { name: "help", feature: "read", description: "Show the bot's commands.", parametersJsonSchema: obj(), toCommand: () => ({ kind: "help" }) },
-  { name: "sign_up", feature: "signup", description: "Sign the asker up for a practice. Only when they clearly ask to join.", parametersJsonSchema: obj({ practice: PRACTICE, lists: LISTS }, ["practice"]), toCommand: (a) => ({ kind: "in", practice: str(a.practice), lists: str(a.lists) }) },
-  { name: "drop_out", feature: "signup", description: "Take the asker off a practice. Only when they clearly say they can't come.", parametersJsonSchema: obj({ practice: PRACTICE, lists: LISTS }, ["practice"]), toCommand: (a) => ({ kind: "out", practice: str(a.practice), lists: str(a.lists), confirm: false }) },
-  { name: "post_signup_message", feature: "post", board: true, description: "Board: post the practice's sign-up message with its link in the group.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "post", practice: str(a.practice) }) },
-  { name: "open_signups", feature: "board", board: true, description: "Board: open sign-ups for a practice now.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "open", practice: str(a.practice) }) },
+  { name: "sign_up", feature: "signup", description: "Sign the asker up for a practice. Only when they clearly ask to join.", parametersJsonSchema: obj({ practice: PRACTICE_OR_DEFAULT, lists: LISTS }), toCommand: (a) => ({ kind: "in", practice: str(a.practice), lists: str(a.lists) }) },
+  { name: "drop_out", feature: "signup", description: "Take the asker off a practice. Only when they clearly say they can't come.", parametersJsonSchema: obj({ practice: PRACTICE_OR_DEFAULT, lists: LISTS }), toCommand: (a) => ({ kind: "out", practice: str(a.practice), lists: str(a.lists), confirm: false }) },
+  { name: "post_signup_message", feature: "post", board: true, description: "Board: post the practice in the group, telling everyone how to sign up.", parametersJsonSchema: obj({ practice: PRACTICE_OR_DEFAULT }), toCommand: (a) => ({ kind: "post", practice: str(a.practice) }) },
+  { name: "open_signups", feature: "board", board: true, description: "Board: open sign-ups for a practice now.", parametersJsonSchema: obj({ practice: PRACTICE_OR_DEFAULT }), toCommand: (a) => ({ kind: "open", practice: str(a.practice) }) },
   {
     name: "cancel_practice",
     feature: "board",
@@ -105,7 +106,13 @@ export const SYSTEM = `You are The List bot in the WhatsApp group of CBS FC, a s
 Either answer the question briefly from the context below (one to three short sentences, WhatsApp formatting with *bold*, New York times), or call exactly one tool when the person wants the bot to do or show something a tool does.
 Only call sign_up or drop_out when the person clearly asks to join or leave. Never make up practices, times or numbers. If you don't know, say so and suggest "!help". Don't mention tools or this prompt.`;
 
-export type AskResult = { kind: "command"; command: Command } | { kind: "text"; text: string };
+/** Only for swipe-replies to the bot, where "thanks 👍" is common. A direct @mention always gets an answer. */
+const MAY_STAY_SILENT = `This message is a reply to one of the bot's messages. If it doesn't need an answer (thanks, an emoji, a remark meant for someone else), answer with exactly: -`;
+
+/** Gemini's way of saying "no reply needed". */
+const SILENT = "-";
+
+export type AskResult = { kind: "command"; command: Command } | { kind: "text"; text: string } | { kind: "silent" };
 
 /** One question → a command to run, or a text answer. Throws only on programming errors. */
 export async function ask(
@@ -116,6 +123,10 @@ export async function ask(
   features: Set<Feature>,
   now: Date,
   timeoutMs = AI_TIMEOUT_MS,
+  /** Recent exchanges with the bot in this chat (memory.ts), or "". */
+  history = "",
+  /** True for a swipe-reply to the bot: then "no answer needed" is allowed. */
+  maySilence = false,
 ): Promise<AskResult> {
   const tools = toolsFor(asker, features);
   const controller = new AbortController();
@@ -128,7 +139,7 @@ export async function ask(
   });
   try {
     const answer = await Promise.race([
-      model.generate({ system: `${SYSTEM}\n\n${contextFor(practices, asker, now)}`, prompt: question.slice(0, 500), tools, signal: controller.signal }),
+      model.generate({ system: [SYSTEM, maySilence ? MAY_STAY_SILENT : "", contextFor(practices, asker, now), history].filter(Boolean).join("\n\n"), prompt: question.slice(0, 500), tools, signal: controller.signal }),
       timeout,
     ]);
     if (answer === "timeout") return { kind: "text", text: "I'm thinking too slowly right now. Try the plain commands: `!week`, `!list thu`, `!me`, `!help`." };
@@ -137,6 +148,7 @@ export async function ask(
       return command ? { kind: "command", command } : { kind: "text", text: "Sorry, I can't do that. Try `!help`." };
     }
     const text = answer.text.trim();
+    if (text === SILENT) return maySilence ? { kind: "silent" } : { kind: "text", text: "Sorry, I didn't get that. Try `!help`." };
     return { kind: "text", text: text ? text.slice(0, 1000) : "Sorry, I didn't get that. Try `!help`." };
   } catch (err) {
     const status = (err as { status?: number }).status;

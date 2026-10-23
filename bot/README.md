@@ -24,7 +24,9 @@ Every command is `!` plus a word, in any case. Messages starting with `!` that a
 | `board` | Board | `!cancel thu [reason]` | Asks to confirm, then `!cancel thu yes` cancels and posts one notice in the group |
 | `board` | Board | `!add thu Name [list] [waitlist]` | Adds a walk-in |
 | `board` | Board | `!teams thu` | Shuffles teams and shows them. Send them from the app |
-| `ai` | Anyone | `@bot <question>` | Gemini answers, or picks one of the commands above and the bot runs it with the same checks |
+| `ai` | Anyone | `@bot <question>`, or a swipe-reply to one of the bot's messages | Gemini answers, or picks one of the commands above and the bot runs it with the same checks (sign-ups and drop-outs happen right away). `!` commands never use Gemini |
+
+**Gemini remembers a little.** It gets the last 6 exchanges with the bot in that chat (from the last 30 minutes), so "and Friday?" works as a follow-up. Only messages to the bot are kept, in memory, never the rest of the group chat, and a command's output (the names on a list) is never part of it. On a swipe-reply Gemini may decide no answer is needed ("thanks 👍"); a direct @mention always gets one. `GEMINI_MODEL` is a list tried in order, because free-tier models are often overloaded.
 
 **The full list follows every change.** After `!in`, `!out` and `!add`, the reply carries the practice's whole list with names. The bot then deletes its previous list message for that practice (also the one from `!list`), so only the newest list stays in the chat.
 
@@ -82,7 +84,7 @@ Copy `.env.example` to `.env` (gitignored; never commit it):
 | `DROP_LINK_SECRET` | The app's value, so the links `!post` makes work |
 | `SITE_URL` | The app's address |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Club Gmail, only for the 6-digit linking codes. Empty = print to the terminal |
-| `GEMINI_API_KEY`, `GEMINI_MODEL` | Google AI Studio key (free tier). The model defaults to `gemini-flash-latest` |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | Google AI Studio key (free tier). Models are tried in order, default `gemini-flash-lite-latest,gemini-flash-latest` |
 | `BOT_PHONE` | The bot's own number, E.164 (`+1…`) |
 | `ALLOWED_GROUPS` | Exact group names, comma-separated |
 | `BOT_FEATURES` | Any of `read,post,signup,board,ai` |

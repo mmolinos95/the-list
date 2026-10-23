@@ -6,6 +6,7 @@ import type { Asker } from "./identity";
 import type { Command } from "./parse";
 import { linkUrl } from "./phone";
 import { matchLists, pickPractice } from "./pick";
+import type { ChatMemory } from "./memory";
 import { addQuietly, cancelQuietly, dropQuietly, signUpQuietly, type Promotion } from "./quiet";
 import { signupUrl } from "./links";
 import { chatPost, selectorFor, sharePost } from "./share";
@@ -31,13 +32,31 @@ export type CommandDeps = {
   ai?: AiModel;
   /** The WhatsApp ID to @mention for a member's email, if they linked one (state.ts). */
   mentionFor?: (email: string) => string | null;
+  /** Recent exchanges per chat, for Gemini's follow-ups (memory.ts). */
+  memory?: ChatMemory;
 };
 
 export type Request = {
   asker: Asker | null;
-  /** Where the confirmation of a two-step command must come from (chat + sender). */
+  /** Where the confirmation of a two-step command must come from: "<chat>|<sender>". */
   chatKey: string;
+  /** A swipe-reply to the bot (not an @mention): Gemini may decide no answer is needed. */
+  replyToBot?: boolean;
 };
+
+const chatOf = (req: Request) => req.chatKey.split("|")[0];
+const senderOf = (req: Request) => req.chatKey.slice(req.chatKey.indexOf("|") + 1);
+
+/** A command as someone would type it, for Gemini's memory: "!in mon games". */
+export function typed(cmd: Command): string {
+  const bits: string[] = [cmd.kind];
+  if ("practice" in cmd && cmd.practice) bits.push(cmd.practice);
+  if ("lists" in cmd && cmd.lists) bits.push(cmd.lists);
+  if ("rest" in cmd && cmd.rest) bits.push(cmd.rest);
+  if ("reason" in cmd && cmd.reason) bits.push(cmd.reason);
+  if ("confirm" in cmd && cmd.confirm) bits.push("yes");
+  return `!${bits.join(" ")}`;
+}
 
 const reply = (text: string): Out[] => [{ text, quote: true }];
 
@@ -100,6 +119,13 @@ export class Commands {
   }
 
   async run(cmd: Command, req: Request): Promise<Out[]> {
+    const out = await this.exec(cmd, req);
+    // Free text remembers itself (with Gemini's answer); a typed command is noted as done.
+    if (cmd.kind !== "free") this.deps.memory?.remember(chatOf(req), senderOf(req), typed(cmd), "(ran it and showed the result)");
+    return out;
+  }
+
+  private async exec(cmd: Command, req: Request): Promise<Out[]> {
     if (!this.deps.features.has(FEATURE_OF[cmd.kind])) {
       if (cmd.kind === "free") return reply(`Sorry, I didn't get that.\n\n${this.help(req.asker, true)}`);
       return reply("That isn't switched on yet. For now, use the app or ask the board.");
@@ -307,11 +333,17 @@ export class Commands {
   private async free(text: string, req: Request): Promise<Out[]> {
     if (!this.deps.ai) return reply(`Sorry, I didn't get that.\n\n${this.help(req.asker, true)}`);
     const practices = await this.deps.data.upcoming(this.now, 14);
-    const r = await ask(this.deps.ai, text, practices, req.asker, this.deps.features, this.now);
-    if (r.kind === "text") return reply(r.text);
+    const memory = this.deps.memory;
+    const r = await ask(this.deps.ai, text, practices, req.asker, this.deps.features, this.now, undefined, memory?.forPrompt(chatOf(req), senderOf(req)) ?? "", !!req.replyToBot);
+    if (r.kind === "silent") return [];
+    if (r.kind === "text") {
+      memory?.remember(chatOf(req), senderOf(req), text, r.text);
+      return reply(r.text);
+    }
     // The same door as a typed command, so the same checks. Never back into Gemini.
     if (r.command.kind === "free") return reply("Sorry, I didn't get that. Try `!help`.");
-    return this.run(r.command, req);
+    memory?.remember(chatOf(req), senderOf(req), text, `(ran ${typed(r.command)} and showed the result)`);
+    return this.exec(r.command, req);
   }
 
   // Phase 4: running a practice (board) -------------------------------------------

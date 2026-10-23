@@ -51,6 +51,8 @@ export function toIncoming(m: WAMessage, ctx: { botIds: string[]; groupName?: st
   const bots = new Set(ctx.botIds.map(norm).filter(Boolean));
   const mentioned = (contextOf(m.message)?.mentionedJid ?? []).map(norm);
   const mentionsBot = mentioned.some((j) => bots.has(j));
+  const quotedAuthor = norm(contextOf(m.message)?.participant);
+  const repliesToBot = !!quotedAuthor && bots.has(quotedAuthor);
   if (mentionsBot) {
     for (const b of bots) text = text.replaceAll(`@${b.split("@")[0]}`, " ");
     text = text.replace(/\s+/g, " ").trim();
@@ -70,6 +72,7 @@ export function toIncoming(m: WAMessage, ctx: { botIds: string[]; groupName?: st
     senderPhone,
     text,
     mentionsBot,
+    ...(repliesToBot ? { repliesToBot } : {}),
     timestamp: Number(m.messageTimestamp ?? 0),
   };
 }

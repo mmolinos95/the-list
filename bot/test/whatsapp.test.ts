@@ -43,6 +43,14 @@ describe("toIncoming (Baileys → IncomingMessage)", () => {
     expect(other).toMatchObject({ mentionsBot: false, text: "@555 hi" });
   });
 
+  it("counts a swipe-reply to one of the bot's messages as talking to the bot", () => {
+    const reply = (participant: string) =>
+      toIncoming(base({ participant: "1@lid" }, { extendedTextMessage: { text: "and friday?", contextInfo: { stanzaId: "X", participant } } }), bot);
+    expect(reply("88888888@lid")).toMatchObject({ repliesToBot: true, mentionsBot: false, text: "and friday?" });
+    expect(reply("12125550100@s.whatsapp.net")).toMatchObject({ repliesToBot: true });
+    expect(reply("555@lid")?.repliesToBot).toBeUndefined();
+  });
+
   it("reads DMs from the chat ID", () => {
     const m = toIncoming(base({ remoteJid: "4444@lid", remoteJidAlt: "12125550133@s.whatsapp.net" }, { conversation: "link" }), bot);
     expect(m).toMatchObject({ isGroup: false, chatId: "4444@lid", senderIds: ["4444@lid", "12125550133@s.whatsapp.net"], senderPhone: "+12125550133", groupName: undefined });
