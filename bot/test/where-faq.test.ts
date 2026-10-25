@@ -91,7 +91,7 @@ Cleats and a black and a white shirt.
     const r = await ask(model, "what should I bring?", [], null, new Set(FEATURES), new Date(), undefined, "", false, new Map(), "## What to bring\n\nCleats.");
     expect(r).toEqual({ kind: "text", text: "Bring cleats." });
     expect(sent[0].system).toContain("Club FAQ (from the board):\n## What to bring\n\nCleats.");
-    expect(sent[0].system).toMatch(/answer only from the club FAQ below; if it doesn't say, tell them to ask the board/);
+    expect(sent[0].system).toMatch(/answer only from the club FAQ below; if it doesn't say, just say you don't know that one and to ask the board. Never mention the FAQ itself/);
   });
 
   it("tells Gemini there's no FAQ when there isn't one", async () => {
