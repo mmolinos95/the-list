@@ -39,7 +39,7 @@ sudo -u listbot -H npm ci --omit=dev --no-audit --no-fund
 sudo install -m 644 /opt/listbot/deploy/listbot.service /etc/systemd/system/listbot.service
 sudo systemctl daemon-reload
 sudo systemctl enable listbot >/dev/null
-if [ -d /opt/listbot/data/auth ]; then
+if sudo test -d /opt/listbot/data/auth; then
   sudo systemctl restart listbot
   sleep 5
   sudo systemctl --no-pager status listbot | head -n 5
