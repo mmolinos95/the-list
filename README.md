@@ -1,5 +1,26 @@
 # CBS FC · The List
 
+**A WhatsApp AI bot and web app that run practice sign-ups for a ~200-member soccer club at Columbia Business School.** Members sign up, drop out and see who's coming without leaving the group chat (`!in`, `!out`, `!list`), or just ask in plain English ("@bot will it rain Friday?"). A waitlist moves up on its own, and the board runs practices and teams from their phones.
+
+> Showcase copy of a club project by [Martin Molinos](https://github.com/mmolinos95). The club's own repositories are private; this copy has the same code and full commit history (Oct 7–30, 2026). No secrets or member data are included.
+
+### At a glance
+
+| | |
+|---|---|
+| **Problem** | Sign-ups ran through a Google Form plus people re-posting the list in a 148-person WhatsApp chat: nobody knew who was in, and anyone could edit anyone's spot |
+| **Web app** | Next.js 16 + Supabase (Postgres) on Vercel. Private per-practice links, first-come-first-served with a concurrency-safe last spot, automatic waitlist, 2-hour lock, late-drop tracking, team builder, board tools, email login without passwords. Live in about a day |
+| **WhatsApp bot** ([bot/](bot/)) | Node.js service on a free-tier Google Cloud VM. Connects as a linked WhatsApp device (Baileys). `!` commands for everything, Google Gemini for plain-English questions (tool calling with the same permission checks, short memory, model fallback), live weather from Open-Meteo, batched list posts for the sign-up rush, down alerts by email |
+| **One rulebook** | Every sign-up rule is a Postgres function shared by the website and the bot, so they can't disagree |
+| **Privacy** | Names are shown like the public list; phones and emails never. Member names never reach the AI provider (tested) |
+| **Quality** | 208 automated tests (59 app, 149 bot) against an in-memory Postgres with the real migrations; everything runs offline |
+| **Cost** | $0/month on free tiers |
+| **How it was built** | I owned the product (problem discovery, ~80 documented decisions, brand and UX, testing with real users, release and cost decisions) and directed AI coding agents (Claude Code, local and in the cloud) that wrote the code. Planning docs and the agent brief are in the repo: [PLAN.md](PLAN.md), [SCREENS.md](SCREENS.md), [DATA_MODEL.md](DATA_MODEL.md), [bot/BRIEF.md](bot/BRIEF.md) |
+
+The rest of this README is the club's setup and operations guide.
+
+---
+
 _Your spot, sorted._ The practice sign-up list for CBS FC: members sign up from the link the board posts in WhatsApp for each practice, the overflow goes to a waitlist that moves up on its own, and the board runs practices and teams from their phones.
 
 - **Members** (no account): the practice's link from WhatsApp (`/p/<date-day>?k=…`) → sign up. Drop out with the personal link in their email. Without a valid link, the site only says "Get the link in WhatsApp".
