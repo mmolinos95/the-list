@@ -101,7 +101,7 @@ Copy `.env.example` to `.env` (gitignored; never commit it):
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Club Gmail, only for the 6-digit linking codes and down alerts. Empty = print to the terminal |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Google AI Studio key (free tier). Models are tried in order, default `gemini-flash-lite-latest,gemini-flash-latest` |
 | `BOT_PHONE` | The bot's own number, E.164 (`+1…`) |
-| `ALLOWED_GROUPS` | Exact group names, comma-separated |
+| `ALLOWED_GROUPS` | Group IDs (`…@g.us`), comma-separated. The bot logs every group it is in with its ID when it connects ("In N group(s): …"). Exact names also work, but stop matching as soon as an admin renames the chat |
 | `BOT_FEATURES` | Any of `read,post,signup,board,ai` |
 | `DATA_DIR` | Where the WhatsApp login and the local database live (default `./data`, gitignored) |
 | `ALERT_EMAILS` | Who gets an email when the bot is down (below). Comma-separated; empty = no alerts |

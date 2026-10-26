@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { Bot, MAX_AGE_S } from "../src/bot";
+import { Bot, isAllowedGroup, MAX_AGE_S } from "../src/bot";
 import type { Commands } from "../src/commands";
 import { commandsFor, dataFor, FakeChat, FakeMailer, freshDb, member, memoryState, msg, practice, type Db } from "./helpers";
 
@@ -131,5 +131,14 @@ describe("the router", () => {
     const { bot, chat } = setup();
     for (const text of ["!!!", "!nice", "!lol thu"]) await bot.handle(msg({ text }));
     expect(chat.out).toEqual([]);
+  });
+
+  it("matches allowed groups by ID (survives renames) or by exact name", () => {
+    const g = { chatId: "120363000000000001@g.us", groupName: "CBS FC ⚽️ 2026" };
+    expect(isAllowedGroup(g, ["120363000000000001@g.us"])).toBe(true);
+    expect(isAllowedGroup({ ...g, groupName: "Renamed" }, ["120363000000000001@g.us"])).toBe(true);
+    expect(isAllowedGroup(g, ["CBS FC ⚽️ 2026"])).toBe(true);
+    expect(isAllowedGroup({ ...g, groupName: "Renamed" }, ["CBS FC ⚽️ 2026"])).toBe(false);
+    expect(isAllowedGroup(g, ["999@g.us", "Other"])).toBe(false);
   });
 });

@@ -27,12 +27,21 @@ export type BotDeps = {
   state: LocalState;
   mailer: Mailer;
   commands: Commands;
+  /** Group IDs ("…@g.us", which survive renames) or exact group names. */
   allowedGroups: string[];
   now: () => number;
   log?: (msg: string, err?: unknown) => void;
   /** Timers for batching list messages; tests pass a fake clock. */
   timers?: Timers;
 };
+
+/**
+ * Whether the bot answers in this group. Its ID ("…@g.us") never changes; a name
+ * stops matching as soon as an admin renames the chat, so IDs are the safe choice.
+ */
+export function isAllowedGroup(msg: Pick<IncomingMessage, "chatId" | "groupName">, allowed: string[]) {
+  return allowed.some((g) => (g.endsWith("@g.us") ? g === msg.chatId : g === msg.groupName));
+}
 
 export class Bot {
   private queue = new KeyedQueue();
@@ -50,7 +59,7 @@ export class Bot {
     if (this.deps.now() / 1000 - msg.timestamp > MAX_AGE_S) return Promise.resolve();
 
     if (msg.isGroup) {
-      if (!msg.groupName || !this.deps.allowedGroups.includes(msg.groupName)) return Promise.resolve();
+      if (!isAllowedGroup(msg, this.deps.allowedGroups)) return Promise.resolve();
       const body = triggerBody(msg.text, msg.mentionsBot || !!msg.repliesToBot);
       if (body === null) return Promise.resolve();
       return this.answer(msg, () => this.groupCommand(msg, body));

@@ -122,6 +122,7 @@ export class WhatsApp implements Chat {
         this.attempt = 0;
         this.opts.log("WhatsApp connected.");
         this.opts.onConnection?.(true);
+        void this.logGroups();
       }
       if (connection !== "close" || this.stopped) return;
       const code = (lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output?.statusCode;
@@ -144,6 +145,17 @@ export class WhatsApp implements Chat {
       if (type !== "notify") return;
       for (const m of messages) void this.incoming(m).catch((err) => this.opts.log("Couldn't read a message", err));
     });
+  }
+
+  /** Lists the groups the bot is in with their IDs, so ALLOWED_GROUPS can use the ID (which survives renames). */
+  private async logGroups() {
+    try {
+      const groups = Object.values(await this.socket().groupFetchAllParticipating());
+      for (const g of groups) this.groups.set(g.id, g);
+      this.opts.log(`In ${groups.length} group(s): ${groups.map((g) => `"${g.subject}" = ${g.id}`).join(", ") || "none"}.`);
+    } catch (err) {
+      this.opts.log("Couldn't list the groups", err);
+    }
   }
 
   stop() {
