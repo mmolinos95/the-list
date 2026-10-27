@@ -37,16 +37,20 @@ export function supabaseData(url: string, secretKey: string): Data {
       return check(await db.from("members").select("id, email, name, phone").eq("email", email.trim().toLowerCase()).maybeSingle());
     },
     async memberByPhone(phone) {
-      const rows = check(
-        await db.from("members").select("id, email, name, phone").eq("phone", phone).not("email", "is", null).order("updated_at", { ascending: false }).limit(1),
-      );
-      return rows?.[0] ?? null;
+      // Newest first; PostgREST can't sort by "has an email", so that's done here.
+      const rows = check(await db.from("members").select("id, email, name, phone").eq("phone", phone).order("updated_at", { ascending: false }).limit(20)) ?? [];
+      return rows.find((m) => m.email) ?? rows[0] ?? null;
+    },
+    async membersById(ids) {
+      if (ids.length === 0) return [];
+      return check(await db.from("members").select("id, email, name, phone").in("id", ids)) ?? [];
     },
     async boardMember(email) {
       return check(await db.from("board_members").select("id, email, name, role").eq("email", email.trim().toLowerCase()).maybeSingle());
     },
 
     signUp: (eventId, listIds, name, email, phone) => rpc("sign_up", { p_event: eventId, p_lists: listIds, p_name: name, p_email: email, p_phone: phone }),
+    signUpByPhone: (eventId, listIds, name, phone) => rpc("sign_up_by_phone", { p_event: eventId, p_lists: listIds, p_name: name, p_phone: phone }),
     drop: (eventId, memberId, listIds) => rpc("drop_signups", { p_event: eventId, p_member: memberId, p_lists: listIds }),
     openEvent: (eventId) => rpc("open_event", { p_event: eventId }),
     cancelEvent: (eventId, reason, by) => rpc("cancel_event", { p_event: eventId, p_reason: reason, p_by: by }),

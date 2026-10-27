@@ -25,7 +25,7 @@ beforeEach(async () => {
 });
 
 function botWith(chat: Chat = new FakeChat()) {
-  const commands = commandsFor(data, undefined, { mentionFor: (email) => state.mentionFor(email) });
+  const commands = commandsFor(data, undefined, { mentionFor: (who) => state.mentionFor(who) });
   const bot = new Bot({ chat, data, state, mailer: new FakeMailer(), commands, allowedGroups: ["CBS FC"], now: Date.now, timers: clock });
   return bot;
 }

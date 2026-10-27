@@ -19,7 +19,7 @@ Every command is `!` plus a word, in any case. Messages starting with `!` that a
 | `read` | Anyone | `!where [thu]` | Where the practice is, with a Google Maps link (no day: the next practice) |
 | `read` | Anyone | `!help` | The commands (board ones only for the board) |
 | `post` | Board | `!post [thu]` | Posts the practice (no day: the open one). With `signup` on, it tells people to sign up right in the chat (`!in thu`) and adds the web link only as a fallback. Without it, it's the app's **Copy WhatsApp post** text with the signed link |
-| `signup` | Member | `!in [thu] [list]` | Signs you up (asks which list if there are several; `both` works). No day: the practice that's open |
+| `signup` | Member | `!in [thu] [list]` | Signs you up (asks which list if there are several; `both` works). No day: the practice that's open. First time: `!in Firstname Lastname` (see Who is asking) |
 | `signup` | Member | `!out [thu] [list]` | Drops you (no day: the next practice you're on; asks first if it would be a late drop). Whoever moves up is in the next list post (@mentioned if linked) |
 | `board` | Board | `!open [thu]` | Opens sign-ups now (the app's **Open sign-ups** button). No day: the next practice that isn't open yet |
 | `board` | Board | `!cancel thu [reason]` | Asks to confirm, then `!cancel thu yes` cancels and posts one notice in the group |
@@ -58,13 +58,16 @@ The bot's number is a normal WhatsApp account driven by an unofficial library (B
 
 ## Who is asking
 
-Members are matched by email in the database. The bot knows who's asking when:
+The bot knows who's asking when:
 
-1. their WhatsApp ID is already linked (kept in the bot's local database), or
-2. WhatsApp shows their phone number and it matches a member's phone (the most recently updated one wins), or
-3. they link themselves: the bot replies with a `wa.me/<bot>?text=link` link, they send `link` in a DM, give their email, and type back the 6-digit code the bot emails them (10 minutes, at most 3 codes an hour). New members also give their name. Their phone is only ever the number WhatsApp shows (none if hidden), never a typed one. Their database row is created by their first sign-up.
+1. their WhatsApp ID is linked to an email (kept in the bot's local database), or
+2. WhatsApp shows their phone number and it matches a member's phone: the website's record (with an email) if there is one, else a member known only by phone. WhatsApp has verified that number, so it's proof enough, or
+3. **first time:** they send `!in Firstname Lastname` in the group (`!in thu Ana Diaz games` with a day and list). That signs them up by their WhatsApp phone, with no email, through the `sign_up_by_phone` database function (same rules as `sign_up`; added 2026-10-27, see `supabase/migrations/20261027000001_sign_up_by_phone.sql`). After that, plain `!in` works. The post and `!help` say so.
+4. **Number hidden** (rare: every tester so far showed one): they link by DM instead. The bot replies with a `wa.me/<bot>?text=link` link, they send `link` in a DM, give their email, and type back the 6-digit code the bot emails them (10 minutes, at most 3 codes an hour). New members also give their name. Their phone is only ever the number WhatsApp shows, never a typed one.
 
-Board members are recognized by their email being in `board_members`.
+Members known only by phone get no emails (WhatsApp only, as for everyone the bot signs up) and drop out with `!out`. Someone who signed up on the website with a different phone gets a second member record; their sign-ups work the same.
+
+Board members are recognized by their email being in `board_members`, so a board member links by DM once (the bot says so if they try a board command).
 
 ## Develop and test (no secrets needed)
 

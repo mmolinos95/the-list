@@ -149,7 +149,7 @@ export class Bot {
     const { data, state, commands } = this.deps;
     const asker = await whoIs(msg.senderIds, msg.senderPhone, data, state);
     const replyToBot = !!msg.repliesToBot && !msg.mentionsBot;
-    return commands.run(parseCommand(body), { asker, chatKey: `${msg.chatId}|${msg.senderIds[0]}`, replyToBot });
+    return commands.run(parseCommand(body), { asker, chatKey: `${msg.chatId}|${msg.senderIds[0]}`, replyToBot, phone: msg.senderPhone });
   }
 
   private async linking(msg: IncomingMessage) {

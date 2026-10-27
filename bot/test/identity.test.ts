@@ -1,5 +1,10 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { beforeAll, describe, expect, it } from "vitest";
 import { whoIs } from "../src/identity";
+import { LocalState } from "../src/state";
 import { board, dataFor, freshDb, member, memoryState, type Db } from "./helpers";
 
 let db: Db;
@@ -30,11 +35,37 @@ describe("who is asking", () => {
     expect(state.link(["b@lid"])?.email).toBe("new@example.com");
   });
 
-  it("ignores walk-ins without an email and unknown phones", async () => {
+  it("knows members without an email by their phone (WhatsApp verified it), and saves the link", async () => {
     const state = memoryState();
-    expect(await whoIs(["c@lid"], "+12125550122", dataFor(db), state)).toBeNull();
-    expect(await whoIs(["c@lid"], "+12125550999", dataFor(db), state)).toBeNull();
-    expect(await whoIs(["c@lid"], null, dataFor(db), state)).toBeNull();
+    const who = await whoIs(["c@lid"], "+12125550122", dataFor(db), state);
+    expect(who).toMatchObject({ email: null, name: "Walk In", phone: "+12125550122", board: null });
+    expect(state.link(["c@lid"])).toEqual({ email: null, name: "Walk In", phone: "+12125550122" });
+    expect(state.mentionFor({ email: null, phone: "+12125550122" })).toBe("c@lid");
+  });
+
+  it("doesn't know unknown or hidden phones", async () => {
+    const state = memoryState();
+    expect(await whoIs(["f@lid"], "+12125550999", dataFor(db), state)).toBeNull();
+    expect(await whoIs(["f@lid"], null, dataFor(db), state)).toBeNull();
+  });
+
+  it("keeps the name of someone known by phone after the 12-month cleanup removed them", async () => {
+    const state = memoryState();
+    state.saveLink(["g@lid"], { email: null, name: "Gone Away", phone: "+12125550155" });
+    expect(await whoIs(["g@lid"], "+12125550155", dataFor(db), state)).toEqual({ email: null, name: "Gone Away", phone: "+12125550155", member: null, board: null });
+  });
+
+  it("moves old local state, where links needed an email, to the new shape", async () => {
+    const path = join(mkdtempSync(join(tmpdir(), "listbot-")), "state.db");
+    const old = new DatabaseSync(path);
+    old.exec(`create table links (wa_id text primary key, email text not null, name text, phone text, linked_at integer not null);
+              insert into links values ('h@lid', 'h@example.com', 'H', null, 1);`);
+    old.close();
+    const state = new LocalState(path);
+    expect(state.link(["h@lid"])).toEqual({ email: "h@example.com", name: "H", phone: null });
+    state.saveLink(["i@lid"], { email: null, name: "I", phone: "+12125550177" });
+    expect(state.link(["i@lid"])?.email).toBeNull();
+    state.close();
   });
 
   it("knows the board by email", async () => {

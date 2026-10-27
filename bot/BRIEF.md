@@ -38,6 +38,8 @@ The bot number is unofficial (Baileys), so WhatsApp can ban it. Behave like a qu
 
 ## Who is asking
 
+> **Changed 2026-10-27 (Martin):** linking by DM was too much friction. A first-timer now sends `!in Firstname Lastname` in the group and is signed up by their WhatsApp phone, with no email, through a new database function `sign_up_by_phone` (added to live; `sign_up` and the website are unchanged). DM linking stays for hidden numbers and for board members. [README.md](README.md), "Who is asking", is current; the plan below is the original.
+
 Members are keyed by **email** in the database (`members.email`); `members.phone` is E.164 and optional.
 
 1. **Linked already:** the sender's WhatsApp ID (phone JID or hidden `@lid`) is in local state → that member.

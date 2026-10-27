@@ -47,11 +47,14 @@ export interface Data {
   upcoming(now: Date, days?: number): Promise<Practice[]>;
   practice(eventId: string, now: Date): Promise<Practice | null>;
   memberByEmail(email: string): Promise<Member | null>;
-  /** The most recently updated member with this phone and an email, if any. */
+  /** The member with this phone: the most recently updated one with an email, else without. */
   memberByPhone(phone: string): Promise<Member | null>;
+  membersById(ids: string[]): Promise<Member[]>;
   boardMember(email: string): Promise<BoardMember | null>;
 
   signUp(eventId: string, listIds: string[], name: string, email: string, phone: string | null): Promise<SignUpResult>;
+  /** sign_up_by_phone: the member is whoever has this (WhatsApp-verified) phone, or a new one named `name`. */
+  signUpByPhone(eventId: string, listIds: string[], name: string | null, phone: string): Promise<SignUpResult>;
   drop(eventId: string, memberId: string, listIds: string[]): Promise<DropResult>;
   openEvent(eventId: string): Promise<void>;
   cancelEvent(eventId: string, reason: string, by: string): Promise<number>;
@@ -62,7 +65,7 @@ export interface Data {
   // writes in one call carries that call's now(), so these timestamps pick out
   // exactly the emails the bot's own call queued, never the app's.
 
-  /** members.last_signup_at: set by sign_up. */
+  /** members.last_signup_at: set by sign_up and sign_up_by_phone. */
   lastSignupAt(memberId: string): Promise<string | null>;
   /** The latest dropped_at of this member's spots in this practice: set by drop_signups. */
   lastDroppedAt(eventId: string, memberId: string): Promise<string | null>;

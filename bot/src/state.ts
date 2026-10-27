@@ -7,9 +7,10 @@ import { DatabaseSync } from "node:sqlite";
 // belong to which member, the linking flow in progress, and how many codes
 // each WhatsApp ID was sent. It holds personal data, so it lives only on the VM.
 
-/** Who a WhatsApp ID belongs to. name/phone are kept so a member deleted by the
- * 12-month cleanup, or a new member who hasn't signed up yet, can still sign up. */
-export type Link = { email: string; name: string | null; phone: string | null };
+/** Who a WhatsApp ID belongs to: by email (linked by DM), or with email null for
+ * members known only by their WhatsApp phone. name/phone are kept so a member deleted
+ * by the 12-month cleanup, or a new member who hasn't signed up yet, can still sign up. */
+export type Link = { email: string | null; name: string | null; phone: string | null };
 
 export type Flow =
   | { step: "email" }
@@ -27,7 +28,7 @@ export class LocalState {
     this.db = new DatabaseSync(path);
     this.db.exec(`
       create table if not exists links (
-        wa_id text primary key, email text not null, name text, phone text, linked_at integer not null);
+        wa_id text primary key, email text, name text, phone text, linked_at integer not null);
       create table if not exists flows (wa_id text primary key, data text not null, updated_at integer not null);
       create table if not exists code_sends (wa_id text not null, sent_at integer not null);
       create index if not exists code_sends_wa on code_sends (wa_id, sent_at);
@@ -35,6 +36,17 @@ export class LocalState {
       create table if not exists list_posts (
         chat_id text not null, event_id text not null, msg_id text not null, primary key (chat_id, event_id));
     `);
+    // Links used to need an email; members known by phone have none.
+    const email = (this.db.prepare(`pragma table_info(links)`).all() as { name: string; notnull: number }[]).find((c) => c.name === "email");
+    if (email?.notnull)
+      this.db.exec(`
+        begin;
+        alter table links rename to links_old;
+        create table links (wa_id text primary key, email text, name text, phone text, linked_at integer not null);
+        insert into links select wa_id, email, name, phone, linked_at from links_old;
+        drop table links_old;
+        commit;
+      `);
   }
 
   link(waIds: string[]): Link | null {
@@ -50,13 +62,15 @@ export class LocalState {
       `insert into links (wa_id, email, name, phone, linked_at) values (?, ?, ?, ?, ?)
        on conflict (wa_id) do update set email = excluded.email, name = excluded.name, phone = excluded.phone, linked_at = excluded.linked_at`,
     );
-    for (const id of new Set(waIds)) stmt.run(id, link.email.toLowerCase(), link.name, link.phone, this.now());
+    for (const id of new Set(waIds)) stmt.run(id, link.email?.toLowerCase() ?? null, link.name, link.phone, this.now());
   }
 
-  /** The WhatsApp ID to @mention for a member: their hidden ID (@lid) if known, else their phone JID. */
-  mentionFor(email: string): string | null {
-    const rows = this.db.prepare(`select wa_id from links where email = ? order by linked_at desc`).all(email.toLowerCase()) as { wa_id: string }[];
-    const ids = rows.map((r) => r.wa_id);
+  /** The WhatsApp ID to @mention for a member (by email, else phone): their hidden ID (@lid) if known, else their phone JID. */
+  mentionFor(who: { email: string | null; phone: string | null }): string | null {
+    const by = (col: "email" | "phone", value: string) =>
+      (this.db.prepare(`select wa_id from links where ${col} = ? order by linked_at desc`).all(value) as { wa_id: string }[]).map((r) => r.wa_id);
+    let ids = who.email ? by("email", who.email.toLowerCase()) : [];
+    if (ids.length === 0 && who.phone) ids = by("phone", who.phone);
     return ids.find((id) => id.endsWith("@lid")) ?? ids.find((id) => id.endsWith("@s.whatsapp.net")) ?? null;
   }
 

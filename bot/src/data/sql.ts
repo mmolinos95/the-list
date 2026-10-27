@@ -40,11 +40,13 @@ export function sqlData(q: Query): Data {
     },
     memberByEmail: (email) => first(`select id, email, name, phone from members where email = $1`, [email.trim().toLowerCase()]),
     memberByPhone: (phone) =>
-      first(`select id, email, name, phone from members where phone = $1 and email is not null order by updated_at desc limit 1`, [phone]),
+      first(`select id, email, name, phone from members where phone = $1 order by (email is not null) desc, updated_at desc limit 1`, [phone]),
+    membersById: async (ids) => (ids.length ? ((await q(`select id, email, name, phone from members where id = any ($1::uuid[])`, [ids])) as never) : []),
     boardMember: (email) => first(`select id, email, name, role from board_members where email = $1`, [email.trim().toLowerCase()]),
 
     signUp: (eventId, listIds, name, email, phone) =>
       value(`select sign_up($1, $2::uuid[], $3, $4, $5) as v`, [eventId, listIds, name, email, phone]),
+    signUpByPhone: (eventId, listIds, name, phone) => value(`select sign_up_by_phone($1, $2::uuid[], $3, $4) as v`, [eventId, listIds, name, phone]),
     drop: (eventId, memberId, listIds) => value(`select drop_signups($1, $2, $3::uuid[]) as v`, [eventId, memberId, listIds]),
     async openEvent(eventId) {
       await q(`select open_event($1)`, [eventId]);

@@ -99,9 +99,11 @@ export function parseCommand(body: string): Command {
   const split = splitSelector(rest);
   // !in and !out work without a day ("!in games", "!out yes"): the handler picks the
   // practice. Only a word or two (list names, "both", "yes"), so a sentence like
-  // "out of curiosity, who's coming?" stays a question.
+  // "out of curiosity, who's coming?" stays a question. !in also takes a first-timer's
+  // name ("!in Ana O'Neil-Diaz games"), so up to five words.
   const shortTail = /^[\p{L}]+(\s+[\p{L}]+)?$/u.test(rest);
-  if (!split && rest && !((kind === "in" || kind === "out") && shortTail)) return { kind: "free", text };
+  const nameTail = /^[\p{L}][\p{L}'’.-]*(\s+[\p{L}][\p{L}'’.-]*){0,4}$/u.test(rest);
+  if (!split && rest && !((kind === "out" && shortTail) || (kind === "in" && nameTail))) return { kind: "free", text };
   const practice = split?.selector ?? "";
   const after = split ? split.rest : rest;
   switch (kind) {

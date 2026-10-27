@@ -23,7 +23,7 @@ const spots = async (eventId: string) =>
 beforeAll(async () => {
   db = await freshDb();
   data = dataFor(db);
-  commands = commandsFor(data, undefined, { mentionFor: (email) => state.mentionFor(email) });
+  commands = commandsFor(data, undefined, { mentionFor: (who) => state.mentionFor(who) });
   // Ben linked his WhatsApp (by phone and hidden ID); the others didn't.
   state.saveLink(["12125550102@s.whatsapp.net", "98765@lid"], { email: "ben@example.com", name: "Ben Ode", phone: "+12125550102" });
   await member(db, "ana@example.com", "Ana Diaz", "+12125550101");

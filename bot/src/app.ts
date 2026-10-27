@@ -26,7 +26,7 @@ export function buildApp(config: Config, overrides: Partial<Pick<App, "data" | "
     dropLinkSecret: config.dropLinkSecret,
     now: () => new Date(),
     ai: config.features.has("ai") && config.geminiApiKey ? geminiModel(config.geminiApiKey, config.geminiModel) : undefined,
-    mentionFor: (email) => state.mentionFor(email),
+    mentionFor: (who) => state.mentionFor(who),
     memory: new ChatMemory(),
     weather: new Weather(),
     faq: loadFaq(),

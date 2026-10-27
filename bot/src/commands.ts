@@ -7,10 +7,10 @@ import type { ChangeItem } from "./format";
 import type { Asker } from "./identity";
 import type { Command } from "./parse";
 import { linkUrl } from "./phone";
-import { matchLists, pickPractice } from "./pick";
+import { matchLists, nameAndLists, pickPractice } from "./pick";
 import type { ChatMemory } from "./memory";
 import type { Weather } from "./weather";
-import { addQuietly, cancelQuietly, dropQuietly, signUpQuietly, type Promotion } from "./quiet";
+import { addQuietly, cancelQuietly, dropQuietly, signUpByPhoneQuietly, signUpQuietly, type Promotion } from "./quiet";
 import { signupUrl } from "./links";
 import { chatPost, selectorFor, sharePost } from "./share";
 
@@ -39,8 +39,8 @@ export type CommandDeps = {
   now: () => Date;
   /** Gemini (gemini.ts), for free-text questions. */
   ai?: AiModel;
-  /** The WhatsApp ID to @mention for a member's email, if they linked one (state.ts). */
-  mentionFor?: (email: string) => string | null;
+  /** The WhatsApp ID to @mention for a member (by email, else phone), if the bot knows it (state.ts). */
+  mentionFor?: (who: { email: string | null; phone: string | null }) => string | null;
   /** Recent exchanges per chat, for Gemini's follow-ups (memory.ts). */
   memory?: ChatMemory;
   /** The club FAQ for Gemini (faq.ts); "" for none. */
@@ -51,6 +51,8 @@ export type CommandDeps = {
 
 export type Request = {
   asker: Asker | null;
+  /** The sender's phone, when WhatsApp shows it (it's verified): a first `!in` signs them up by it. */
+  phone?: string | null;
   /** Where the confirmation of a two-step command must come from: "<chat>|<sender>". */
   chatKey: string;
   /** A swipe-reply to the bot (not an @mention): Gemini may decide no answer is needed. */
@@ -82,6 +84,7 @@ const FRIENDLY: [string, string][] = [
   ["event_not_found", "I couldn't find that practice."],
   ["already_cancelled", "This practice was already cancelled."],
   ["already_on_list", "They're already on that list."],
+  ["name_required", "I need your name first: send `!in Firstname Lastname`."],
   ["members_phone_check", "Your saved phone number doesn't look right. Send me `link` in a DM to fix it."],
 ];
 
@@ -201,7 +204,12 @@ export class Commands {
       "`!me` your spots",
       "`!where` where the next practice is, with a map (or `!where thu`)",
     ];
-    if (has("signup")) lines.push("`!in` sign up for the open practice (or `!in thu [list]`)", "`!out` drop out (or `!out thu [list]`)");
+    if (has("signup"))
+      lines.push(
+        "`!in` sign up for the open practice (or `!in thu [list]`)",
+        "First time? Add your name once: `!in Firstname Lastname`",
+        "`!out` drop out (or `!out thu [list]`)",
+      );
     if (has("ai")) lines.push("Or @mention me with a question.");
     if (asker?.board && (has("post") || has("board"))) {
       lines.push("", "*Board*");
@@ -257,7 +265,7 @@ export class Commands {
   }
 
   private async me(req: Request): Promise<Out[]> {
-    const who = this.needMember(req.asker);
+    const who = this.needMember(req);
     if (typeof who === "string") return reply(who);
     if (!who.member) return reply("You're not on any list yet. Sign up with `!in thu`.");
     const practices = await this.deps.data.upcoming(this.now, 14);
@@ -268,7 +276,7 @@ export class Commands {
   // Phase 2: the board's sign-up post ----------------------------------------------
 
   private async post(selector: string, req: Request): Promise<Out[]> {
-    const who = this.needBoard(req.asker);
+    const who = this.needBoard(req);
     if (typeof who === "string") return reply(who);
     // With sign-ups in WhatsApp on, the post is about the commands and the link is
     // just a fallback; without them, it's the app's post, which needs the link.
@@ -294,44 +302,61 @@ export class Commands {
 
   // Phase 3: signing up and dropping out -------------------------------------------
 
+  /**
+   * Members known by email sign up with it (sign_up); everyone else by their
+   * WhatsApp phone (sign_up_by_phone). A first-timer adds their name once:
+   * "!in Ana Diaz" (and a list, if there are several: "!in Ana Diaz games").
+   */
   private async signUp(selector: string, listText: string, req: Request): Promise<Out[]> {
-    const who = this.needMember(req.asker);
-    if (typeof who === "string") return reply(who);
-    if (!who.name) return reply("I need your name first. Send me `link` in a DM to set it up.");
+    const asker = req.asker;
+    const phone = asker?.phone ?? req.phone ?? null;
+    // WhatsApp hid their number: linking by DM is the only way to know them.
+    if (!asker?.email && !phone) return reply(this.linkHelp());
     const p = await this.findOr(selector, (x) => x.stage === "open" || isNotOpenYet(x), "There's no upcoming practice to sign up for.");
     if (typeof p === "string") return reply(p);
     const sel = selector || selectorFor(p.event.starts_at, this.now);
     const closed = this.closedFor(p, "sign up");
     if (closed) return reply(closed);
 
+    const given = nameAndLists(listText, p.lists);
+    // A name the bot knows wins, so "!in for real" never renames anyone.
+    const name = asker?.name ?? given.name;
+    if (!name) return reply(`First time? Add your name once: \`!in${selector ? ` ${selector}` : ""} Firstname Lastname\`. After that, \`!in\` is enough.`);
+    listText = given.lists;
+    const again = asker?.name ? "" : ` ${name}`;
+
     let lists = p.lists;
     if (p.lists.length > 1 || listText) {
       const m = matchLists(listText, p.lists);
       if (m.unknown) return reply(`${f.day(p)} has no list called "${m.unknown}". Pick ${f.listChoices(p)}.`);
       if (m.lists.length === 0) {
-        const names = p.lists.map((l) => `\`!in ${sel} ${l.name.toLowerCase()}\``);
-        return reply(`Which list? ${f.listChoices(p)}.\nSend ${names.join(", ")} or \`!in ${sel} both\`.`);
+        const names = p.lists.map((l) => `\`!in ${sel}${again} ${l.name.toLowerCase()}\``);
+        return reply(`Which list? ${f.listChoices(p)}.\nSend ${names.join(", ")} or \`!in ${sel}${again} both\`.`);
       }
       lists = m.lists;
     }
 
-    const r = await signUpQuietly(this.deps.data, p.event.id, lists.map((l) => l.id), who.name, who.email, who.phone);
+    const ids = lists.map((l) => l.id);
+    const r = asker?.email
+      ? await signUpQuietly(this.deps.data, p.event.id, ids, name, asker.email, asker.phone)
+      : await signUpByPhoneQuietly(this.deps.data, p.event.id, ids, name, phone!);
     const order = (id: string) => p.lists.findIndex((l) => l.id === id);
     const lines = [...r.results].sort((a, b) => order(a.list_id) - order(b.list_id)).map((x) => {
       if (x.already) return x.spot === "main" ? `You're already on *${x.list}* (#${x.position} of ${x.cap}).` : `You're already #${x.position} on the *${x.list}* waitlist.`;
       if (x.spot === "main") return `You're in: *${x.list}*, #${x.position} of ${x.cap}.`;
       return `*${x.list}* is full. You're #${x.position} on the waitlist and move up on your own if a spot opens before the lock.`;
     });
+    if (again) lines.push("I'll know you from now on: next time, just `!in`.");
     if (r.results.every((x) => x.already)) return reply(lines.join("\n"));
     const items: ChangeItem[] = r.results
       .filter((x) => !x.already)
       .sort((a, b) => order(a.list_id) - order(b.list_id))
-      .map((x) => ({ kind: x.spot === "main" ? "in" : "wait", name: who.name!, list: x.list, position: x.position }));
+      .map((x) => ({ kind: x.spot === "main" ? "in" : "wait", name, list: x.list, position: x.position }));
     return [{ ...this.listOut(await this.fresh(p), lines.join("\n")), change: { eventId: p.event.id, items } }];
   }
 
   private async dropOut(selector: string, listText: string, confirm: boolean, req: Request): Promise<Out[]> {
-    const who = this.needMember(req.asker);
+    const who = this.needMember(req);
     if (typeof who === "string") return reply(who);
     const onIt = (x: Practice) => x.stage !== "past" && x.stage !== "cancelled" && x.lists.some((l) => [...l.main, ...l.waitlist].some((s) => s.member_id === who.member?.id));
     const p = await this.findOr(selector, onIt, "You're not on any upcoming list.");
@@ -407,7 +432,7 @@ export class Commands {
 
   /** The board member and practice for a board command, or a message saying why not. */
   private async boardTarget(selector: string, req: Request): Promise<{ who: Asker; p: Practice } | Out[]> {
-    const who = this.needBoard(req.asker);
+    const who = this.needBoard(req);
     if (typeof who === "string") return reply(who);
     const p = await this.find(selector);
     if (typeof p === "string") return reply(p);
@@ -416,7 +441,7 @@ export class Commands {
 
   /** The app's "Open sign-ups" button (open_event). */
   private async open(selector: string, req: Request): Promise<Out[]> {
-    const who = this.needBoard(req.asker);
+    const who = this.needBoard(req);
     if (typeof who === "string") return reply(who);
     const p = await this.findOr(selector, isNotOpenYet, "Every upcoming practice is already open.");
     if (typeof p === "string") return reply(p);
@@ -532,7 +557,7 @@ export class Commands {
   private async withPromotions(p: Practice, text: string, promoted: Promotion[], items: ChangeItem[]): Promise<Out[]> {
     const mentions: string[] = [];
     const lines = promoted.map((x) => {
-      const jid = this.deps.mentionFor?.(x.email) ?? null;
+      const jid = this.deps.mentionFor?.(x) ?? null;
       if (jid) mentions.push(jid);
       items.push({ kind: "up", name: x.name, list: x.list, position: x.position, ...(jid ? { mention: jid } : {}) });
       const who = jid ? `@${jid.split("@")[0]}` : `*${x.name}*`;
@@ -560,17 +585,29 @@ export class Commands {
     return p ?? `I can't find a practice for "${selector}". Send \`!week\` to see what's coming up.`;
   }
 
-  /** The asker if they're on the board, or why not. */
-  needBoard(asker: Asker | null): Asker | string {
-    const who = this.needMember(asker);
-    if (typeof who === "string") return who;
-    return who.board ? who : "Only the board can do that.";
+  /** The asker if they're on the board, or why not. Board members are known by email, so an unknown one links by DM. */
+  needBoard(req: Request): Asker | string {
+    if (!req.asker?.email) return req.asker || req.phone ? `Only the board can do that. On the board? ${this.boardLinkHelp()}` : this.linkHelp();
+    return req.asker.board ? req.asker : "Only the board can do that.";
   }
 
-  /** The asker, or the message telling an unknown sender how to link. */
-  needMember(asker: Asker | null): Asker | string {
-    if (asker) return asker;
-    const how = this.deps.botPhone ? `tap ${linkUrl(this.deps.botPhone)} to message me and send "link"` : "send me a private message saying `link`";
-    return `I'm The List's bot and I don't know your WhatsApp yet. To connect it to your sign-ups (once, takes a minute), ${how}. I'll email you a code to check it's you, then try again here.`;
+  /** The asker, or what an unknown sender should do. */
+  needMember(req: Request): Asker | string {
+    if (req.asker) return req.asker;
+    if (req.phone) return "I don't know you yet. First time? Sign up with `!in Firstname Lastname` and I'll know you from then on.";
+    return this.linkHelp();
+  }
+
+  /** How to link by DM: for someone whose number WhatsApp hides. */
+  private linkHelp() {
+    return `I'm The List's bot and I don't know your WhatsApp yet. To connect it to your sign-ups (once, takes a minute), ${this.dmHow()}. I'll email you a code to check it's you, then try again here.`;
+  }
+
+  private boardLinkHelp() {
+    return `Connect your WhatsApp to your board email once: ${this.dmHow()}.`;
+  }
+
+  private dmHow() {
+    return this.deps.botPhone ? `tap ${linkUrl(this.deps.botPhone)} to message me and send "link"` : "send me a private message saying `link`";
   }
 }

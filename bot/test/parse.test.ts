@@ -60,6 +60,10 @@ describe("parseCommand", () => {
     expect(parseCommand("in")).toEqual({ kind: "in", practice: "", lists: "" });
     expect(parseCommand("in games")).toEqual({ kind: "in", practice: "", lists: "games" });
     expect(parseCommand("in both")).toEqual({ kind: "in", practice: "", lists: "both" });
+    // A first-timer's name, with or without a list.
+    expect(parseCommand("in Andrés Yunge")).toEqual({ kind: "in", practice: "", lists: "Andrés Yunge" });
+    expect(parseCommand("in Mary O'Neil-Diaz games")).toEqual({ kind: "in", practice: "", lists: "Mary O'Neil-Diaz games" });
+    expect(parseCommand("in if it rains, maybe")).toEqual({ kind: "free", text: "in if it rains, maybe" });
     expect(parseCommand("out")).toEqual({ kind: "out", practice: "", lists: "", confirm: false });
     expect(parseCommand("out yes")).toEqual({ kind: "out", practice: "", lists: "", confirm: true });
     expect(parseCommand("out games yes")).toEqual({ kind: "out", practice: "", lists: "games", confirm: true });

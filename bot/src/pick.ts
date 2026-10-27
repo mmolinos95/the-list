@@ -129,3 +129,24 @@ export function matchLists(text: string, lists: ListInfo[]): { lists: ListInfo[]
 }
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * A first-timer's `!in` text: their name, then any lists ("Ana Diaz", "Ana Diaz games",
+ * "Ana Diaz both"). Text that is only lists has no name, and a name needs two words,
+ * so "!in goalie" stays an unknown list.
+ */
+export function nameAndLists(text: string, lists: ListInfo[]): { name: string | null; lists: string } {
+  const t = text.trim();
+  if (!t || !matchLists(t, lists).unknown) return { name: null, lists: t };
+  let words = t.split(/\s+/);
+  let tail: string[] = [];
+  const named = [...lists].sort((a, b) => b.name.length - a.name.length).find((l) => words.join(" ").toLowerCase().endsWith(` ${l.name.toLowerCase()}`));
+  if (/^(both|all)$/i.test(words.at(-1)!)) tail = words.slice(-1);
+  else if (named) tail = words.slice(-named.name.split(/\s+/).length);
+  words = words.slice(0, words.length - tail.length);
+  if (words.length < 2 || words.join(" ").length > 60) return { name: null, lists: t };
+  return { name: tidyName(words.join(" ")), lists: tail.join(" ") };
+}
+
+/** "ana o'neil" → "Ana O'Neil"; a name typed with capitals stays as typed. */
+const tidyName = (s: string) => (s === s.toLowerCase() ? s.replace(/(^|[\s'’-])(\p{L})/gu, (_, a: string, b: string) => a + b.toUpperCase()) : s);

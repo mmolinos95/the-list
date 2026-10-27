@@ -38,6 +38,7 @@ export function sharePost(
  *   Location: Riverside Park (107th) entrance at 103rd St
  *
  *   *Sign up here:* send `!in mon`
+ *   First time? Add your name once: `!in mon Firstname Lastname`
  *   Drop out: `!out mon` · Who's in: `!list mon`
  *   Or on the web: https://…/p/2026-10-26-mon?k=…
  */
@@ -56,6 +57,7 @@ export function chatPost(
     `Location: ${event.location}`,
     "",
     `*Sign up here:* send \`!in ${sel}\``,
+    `First time? Add your name once: \`!in ${sel} Firstname Lastname\``,
     ...(lists.length === 2 ? [`One list only? \`!in ${sel} ${lists[0].name.toLowerCase()}\` · Both: \`!in ${sel} both\``] : []),
     `Drop out: \`!out ${sel}\` · Who's in: \`!list ${sel}\``,
     ...(link ? [`Or on the web: ${link}`] : []),
