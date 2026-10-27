@@ -20,6 +20,11 @@ export class ChatMemory {
     this.chats.set(chatId, kept.slice(-MEMORY_SIZE));
   }
 
+  /** Forgets everything this sender said to the bot, in every chat (!forget). */
+  forget(sender: string) {
+    for (const [chatId, entries] of this.chats) this.chats.set(chatId, entries.filter((e) => e.sender !== sender));
+  }
+
   /** The recent exchanges as lines for Gemini, oldest first; "" if there are none. */
   forPrompt(chatId: string, sender: string) {
     const lines = this.recent(chatId).map((e) => `- ${e.sender === sender ? "The person asking now" : "Someone else"}: "${e.user}" → bot: ${e.bot}`);

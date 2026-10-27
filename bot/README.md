@@ -18,6 +18,7 @@ Every command is `!` plus a word, in any case. Messages starting with `!` that a
 | `read` | Member | `!me` | Your spots and waitlist positions |
 | `read` | Anyone | `!where [thu]` | Where the practice is, with a Google Maps link (no day: the next practice) |
 | `read` | Anyone | `!help` | The commands (board ones only for the board) |
+| always on | Anyone | `!forget` (or `!delete me`) | Deletes your data: asks first, then `!forget yes` deletes your member record (sign-up history goes with it), the bot's links to your WhatsApp and what Gemini remembers. Not while you're on an upcoming list (drop out first, so the waitlist moves up). A board member stays on the board |
 | `post` | Board | `!post [thu]` | Posts the practice (no day: the open one). With `signup` on, it tells people to sign up right in the chat (`!in thu`) and adds the web link only as a fallback. Without it, it's the app's **Copy WhatsApp post** text with the signed link |
 | `signup` | Member | `!in [thu] [list]` | Signs you up (asks which list if there are several; `both` works). No day: the practice that's open. First time: `!in Firstname Lastname` (see Who is asking) |
 | `signup` | Member | `!out [thu] [list]` | Drops you (no day: the next practice you're on; asks first if it would be a late drop). Whoever moves up is in the next list post (@mentioned if linked) |

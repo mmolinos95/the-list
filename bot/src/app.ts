@@ -27,6 +27,7 @@ export function buildApp(config: Config, overrides: Partial<Pick<App, "data" | "
     now: () => new Date(),
     ai: config.features.has("ai") && config.geminiApiKey ? geminiModel(config.geminiApiKey, config.geminiModel) : undefined,
     mentionFor: (who) => state.mentionFor(who),
+    forgetLocal: (who) => state.forget(who),
     memory: new ChatMemory(),
     weather: new Weather(),
     faq: loadFaq(),

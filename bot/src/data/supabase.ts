@@ -56,6 +56,9 @@ export function supabaseData(url: string, secretKey: string): Data {
     cancelEvent: (eventId, reason, by) => rpc("cancel_event", { p_event: eventId, p_reason: reason, p_by: by }),
     addSignup: (listId, name, spot, by) => rpc("add_signup", { p_list: listId, p_name: name, p_email: null, p_phone: null, p_spot: spot, p_by: by }),
     shuffleTeams: (eventId) => rpc("shuffle_teams", { p_event: eventId }),
+    async deleteMember(memberId) {
+      check(await db.from("members").delete().eq("id", memberId));
+    },
 
     async lastSignupAt(memberId) {
       return check(await db.from("members").select("last_signup_at").eq("id", memberId).maybeSingle())?.last_signup_at ?? null;

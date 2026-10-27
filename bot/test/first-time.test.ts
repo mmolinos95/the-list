@@ -16,7 +16,7 @@ const state = memoryState();
 /** A message from this WhatsApp sender, through identity like the real bot. */
 async function from(sender: { ids: string[]; phone: string | null }, text: string) {
   const asker = await whoIs(sender.ids, sender.phone, data, state);
-  const outs = await commands.run(parseCommand(text), { asker, chatKey: `chat|${sender.ids[0]}`, phone: sender.phone });
+  const outs = await commands.run(parseCommand(text), { asker, chatKey: `chat|${sender.ids[0]}`, phone: sender.phone, senderIds: sender.ids });
   return outs.map((o) => o.text).join("\n");
 }
 const andres = { ids: ["5551@lid"], phone: "+12125550161" };
@@ -27,7 +27,7 @@ const emailsFor = async (eventId: string) => (await db.query(`select kind from e
 beforeAll(async () => {
   db = await freshDb();
   data = dataFor(db);
-  commands = commandsFor(data, undefined, { mentionFor: (who) => state.mentionFor(who) });
+  commands = commandsFor(data, undefined, { mentionFor: (who) => state.mentionFor(who), forgetLocal: (who) => state.forget(who) });
 });
 
 describe("first-time sign-up by phone", () => {
@@ -94,5 +94,37 @@ describe("first-time sign-up by phone", () => {
     await Promise.all([data.signUpByPhone(ev.id, [ev.lists.Games], "Twice Fast", phone), data.signUpByPhone(ev.id, [ev.lists.Games], "Twice Fast", phone)]);
     expect(await membersWith(phone)).toHaveLength(1);
     await expect(data.signUpByPhone(ev.id, [ev.lists.Games], null, "+12125550169")).rejects.toThrow(/name_required/);
+  });
+});
+
+describe("!forget", () => {
+  it("deletes a member's data after a yes, but not while they're on an upcoming list", async () => {
+    const ev = await practice(db, { startsIn: "7 days" });
+    const sender = { ids: ["5558@lid", "12125550170@s.whatsapp.net"], phone: "+12125550170" };
+    await from(sender, `in ${ev.slug} Fern Gully`);
+    expect(await from(sender, "forget")).toMatch(/^You're still on .*\. Drop out first with `!out \S+`, then send `!forget` again\.$/);
+    await from(sender, `out ${ev.slug}`);
+    expect(await from(sender, "delete me")).toBe(
+      "This deletes your name, phone number and sign-up history from The List, and I'll forget your WhatsApp. Send `!forget yes` to confirm.",
+    );
+    expect(await membersWith(sender.phone)).toHaveLength(1);
+
+    expect(await from(sender, "forget yes")).toBe("Done: your data is deleted from The List. If you sign up again, I'll ask for your name.");
+    expect(await membersWith(sender.phone)).toEqual([]);
+    expect((await db.query(`select 1 from signups s join event_lists l on l.id = s.list_id where l.event_id = $1`, [ev.id])).rows).toEqual([]);
+    expect(state.link(sender.ids)).toBeNull();
+    expect(await from(sender, "in")).toMatch(/^First time\?/);
+  });
+
+  it("says so when there's nothing to delete", async () => {
+    expect(await from({ ids: ["5559@lid"], phone: "+12125550171" }, "forget")).toBe("I don't have any of your data.");
+  });
+
+  it("reads !forget, !delete me and a confirming yes, and leaves other uses of delete to Gemini", () => {
+    expect(parseCommand("forget")).toEqual({ kind: "forget", confirm: false });
+    expect(parseCommand("delete my data")).toEqual({ kind: "forget", confirm: false });
+    expect(parseCommand("Forget yes")).toEqual({ kind: "forget", confirm: true });
+    expect(parseCommand("delete me yes")).toEqual({ kind: "forget", confirm: true });
+    expect(parseCommand("delete the post")).toEqual({ kind: "free", text: "delete the post" });
   });
 });

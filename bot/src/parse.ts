@@ -18,6 +18,8 @@ export type Command =
   | { kind: "cancel"; practice: string; reason: string; confirm: boolean }
   | { kind: "add"; practice: string; rest: string }
   | { kind: "teams"; practice: string }
+  /** Delete the asker's data. Only with confirm ("!forget yes") does it happen. */
+  | { kind: "forget"; confirm: boolean }
   | { kind: "free"; text: string };
 
 const KEYWORDS: Record<string, Command["kind"]> = {
@@ -45,6 +47,8 @@ const KEYWORDS: Record<string, Command["kind"]> = {
   add: "add",
   teams: "teams",
   team: "teams",
+  forget: "forget",
+  delete: "forget",
 };
 
 /** The command word a message starts with ("in" for "In mon", "sign" + "up"), or null. */
@@ -92,6 +96,11 @@ export function parseCommand(body: string): Command {
     rest = rest.replace(/^up\s*/i, "");
   }
   if (!kind) return { kind: "free", text };
+  // "!forget", "!delete me", "!forget yes", "!delete my data yes".
+  if (kind === "forget") {
+    const c = confirmTail(rest);
+    return /^((me|my (data|info))\b\s*)?$/i.test(c.text) ? { kind, confirm: c.confirm } : { kind: "free", text };
+  }
   const bare = !rest || /^(please|pls)$/i.test(rest);
   if (kind === "help" || kind === "me" || kind === "week") return bare ? { kind } : { kind: "free", text };
 

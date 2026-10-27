@@ -41,6 +41,8 @@ export type CommandDeps = {
   ai?: AiModel;
   /** The WhatsApp ID to @mention for a member (by email, else phone), if the bot knows it (state.ts). */
   mentionFor?: (who: { email: string | null; phone: string | null }) => string | null;
+  /** Deletes what the bot keeps locally about someone, for !forget (state.ts). */
+  forgetLocal?: (who: { ids: string[]; email: string | null; phone: string | null }) => void;
   /** Recent exchanges per chat, for Gemini's follow-ups (memory.ts). */
   memory?: ChatMemory;
   /** The club FAQ for Gemini (faq.ts); "" for none. */
@@ -53,6 +55,8 @@ export type Request = {
   asker: Asker | null;
   /** The sender's phone, when WhatsApp shows it (it's verified): a first `!in` signs them up by it. */
   phone?: string | null;
+  /** All of the sender's WhatsApp IDs (hidden ID and phone ID), for !forget. */
+  senderIds?: string[];
   /** Where the confirmation of a two-step command must come from: "<chat>|<sender>". */
   chatKey: string;
   /** A swipe-reply to the bot (not an @mention): Gemini may decide no answer is needed. */
@@ -123,6 +127,8 @@ export const FEATURE_OF: Record<Command["kind"], Feature> = {
   cancel: "board",
   add: "board",
   teams: "board",
+  // Deleting your data always works, whatever is switched on.
+  forget: "read",
   free: "ai",
 };
 
@@ -138,7 +144,8 @@ export class Commands {
   async run(cmd: Command, req: Request): Promise<Out[]> {
     const out = await this.exec(cmd, req);
     // Free text remembers itself (with Gemini's answer); a typed command is noted as done.
-    if (cmd.kind !== "free") this.deps.memory?.remember(chatOf(req), senderOf(req), typed(cmd), "(ran it and showed the result)");
+    // !forget leaves nothing behind, so it isn't noted either.
+    if (cmd.kind !== "free" && cmd.kind !== "forget") this.deps.memory?.remember(chatOf(req), senderOf(req), typed(cmd), "(ran it and showed the result)");
     return out;
   }
 
@@ -172,6 +179,8 @@ export class Commands {
         return this.write(() => this.add(cmd.practice, cmd.rest, req));
       case "teams":
         return this.write(() => this.teams(cmd.practice, req));
+      case "forget":
+        return this.forget(cmd.confirm, req);
       case "free":
         return this.free(cmd.text, req);
       default:
@@ -210,6 +219,7 @@ export class Commands {
         "First time? Add your name once: `!in Firstname Lastname`",
         "`!out` drop out (or `!out thu [list]`)",
       );
+    lines.push("`!forget` delete your data from The List");
     if (has("ai")) lines.push("Or @mention me with a question.");
     if (asker?.board && (has("post") || has("board"))) {
       lines.push("", "*Board*");
@@ -391,6 +401,34 @@ export class Commands {
     const name = who.member?.name ?? who.name ?? "Someone";
     const items: ChangeItem[] = r.dropped.map((d) => ({ kind: "out", name, list: d.list, ...(d.late ? { late: true } : {}) }));
     return this.withPromotions(p, `Done: you're off ${names} for ${f.day(p)}.${tail}`, r.promoted, items);
+  }
+
+  /**
+   * Deletes everything The List keeps about the asker, after "!forget yes": their
+   * member row (sign-up history and queued emails go with it), the bot's links to
+   * their WhatsApp, and what Gemini remembers. Not while they're on an upcoming
+   * list, so nobody's spot vanishes without the waitlist moving up.
+   */
+  private async forget(confirm: boolean, req: Request): Promise<Out[]> {
+    const who = req.asker;
+    const local = { ids: req.senderIds ?? [senderOf(req)], email: who?.email ?? null, phone: who?.phone ?? req.phone ?? null };
+    if (!who) {
+      this.deps.forgetLocal?.(local);
+      this.deps.memory?.forget(senderOf(req));
+      return reply("I don't have any of your data.");
+    }
+    if (who.member) {
+      const on = (await this.deps.data.upcoming(this.now, 14)).find(
+        (p) => p.stage !== "past" && p.stage !== "cancelled" && p.lists.some((l) => [...l.main, ...l.waitlist].some((s) => s.member_id === who.member!.id)),
+      );
+      if (on) return reply(`You're still on ${f.day(on)}. Drop out first with \`!out ${selectorFor(on.event.starts_at, this.now)}\`, then send \`!forget\` again.`);
+    }
+    if (!confirm) return reply("This deletes your name, phone number and sign-up history from The List, and I'll forget your WhatsApp. Send `!forget yes` to confirm.");
+    if (who.member) await this.deps.data.deleteMember(who.member.id);
+    this.deps.forgetLocal?.(local);
+    this.deps.memory?.forget(senderOf(req));
+    const board = who.board ? " You're still on the board: ask a president if you want that removed too." : "";
+    return reply(`Done: your data is deleted from The List.${board} If you sign up again, I'll ask for your name.`);
   }
 
   // Phase 5: free-text questions (Gemini) -----------------------------------------

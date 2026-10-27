@@ -65,6 +65,13 @@ export class LocalState {
     for (const id of new Set(waIds)) stmt.run(id, link.email?.toLowerCase() ?? null, link.name, link.phone, this.now());
   }
 
+  /** Deletes everything kept about someone (!forget): their links, by WhatsApp ID, email and phone, and any linking in progress. */
+  forget(who: { ids: string[]; email: string | null; phone: string | null }) {
+    for (const id of who.ids) for (const table of ["links", "flows", "code_sends"]) this.db.prepare(`delete from ${table} where wa_id = ?`).run(id);
+    if (who.email) this.db.prepare(`delete from links where email = ?`).run(who.email.toLowerCase());
+    if (who.phone) this.db.prepare(`delete from links where phone = ?`).run(who.phone);
+  }
+
   /** The WhatsApp ID to @mention for a member (by email, else phone): their hidden ID (@lid) if known, else their phone JID. */
   mentionFor(who: { email: string | null; phone: string | null }): string | null {
     const by = (col: "email" | "phone", value: string) =>

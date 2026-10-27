@@ -60,6 +60,8 @@ export interface Data {
   cancelEvent(eventId: string, reason: string, by: string): Promise<number>;
   addSignup(listId: string, name: string, spot: Spot, by: string): Promise<{ signup_id: string; spot: Spot }>;
   shuffleTeams(eventId: string): Promise<void>;
+  /** Deletes a member; their sign-ups and queued emails go with them (on delete cascade). */
+  deleteMember(memberId: string): Promise<void>;
 
   // Emails a bot write queued (see quiet.ts). Every row a database function
   // writes in one call carries that call's now(), so these timestamps pick out

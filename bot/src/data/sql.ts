@@ -56,6 +56,9 @@ export function sqlData(q: Query): Data {
     async shuffleTeams(eventId) {
       await q(`select shuffle_teams($1)`, [eventId]);
     },
+    async deleteMember(memberId) {
+      await q(`delete from members where id = $1`, [memberId]);
+    },
 
     // Timestamps as text, to keep Postgres' microseconds (a JS Date drops them).
     lastSignupAt: async (memberId) => (await first<{ v: string }>(`select last_signup_at::text as v from members where id = $1`, [memberId]))?.v ?? null,
