@@ -113,8 +113,12 @@ export function listChoices(p: Practice) {
   return names.length > 1 ? `${names.slice(0, -1).join(", ")} or ${names.at(-1)}` : names[0] ?? "";
 }
 
-/** A Google Maps search link for a practice's place. */
-export const mapsUrl = (location: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+/** The club's field in Riverside Park, since a search for the place text lands nearby but not on it. */
+export const FIELD_MAP = "https://maps.app.goo.gl/81h7ypVmi73kAEVT6"; // Neville Colman Field
+
+/** A Google Maps link for a practice's place: the field for Riverside Park, else a search. */
+export const mapsUrl = (location: string) =>
+  /riverside park/i.test(location) ? FIELD_MAP : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
 
 /** One change to a practice's list, for the batched list message (batch.ts). */
 export type ChangeItem = {

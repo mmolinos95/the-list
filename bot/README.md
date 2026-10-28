@@ -30,7 +30,7 @@ Every command is `!` plus a word, in any case. Messages starting with `!` that a
 
 **Gemini remembers a little.** It gets the last 6 exchanges with the bot in that chat (from the last 30 minutes), so "and Friday?" works as a follow-up. Only messages to the bot are kept, in memory, never the rest of the group chat, and a command's output (the names on a list) is never part of it. On a swipe-reply Gemini may decide no answer is needed ("thanks 👍"); a direct @mention always gets one. `GEMINI_MODEL` is a list tried in order, because free-tier models are often overloaded.
 
-**Weather.** Gemini gets the forecast for each practice's start time at the field (Riverside Park, 107th St entrance) from [Open-Meteo](https://open-meteo.com): free, no key, up to 16 days ahead, °F first then °C. Only the field's coordinates are sent. Web search isn't on: the free Gemini tier refuses Google Search for this key (quota error), so it needs a paid tier first.
+**Weather.** Gemini gets the forecast for each practice's start time at the field (Neville Colman Field in Riverside Park) from [Open-Meteo](https://open-meteo.com): free, no key, up to 16 days ahead, °F first then °C. Only the field's coordinates are sent. Web search isn't on: the free Gemini tier refuses Google Search for this key (quota error), so it needs a paid tier first.
 
 **The full list follows every change, batched.** `!in`, `!out` and `!add` (and the same through Gemini) are written to the database right away, in the order they arrive, but they don't each get a reply. The bot collects the changes per practice and posts one list message once nobody has changed that practice for 5 s, or 15 s after the first change at the latest. It says what changed, then the whole list with names:
 

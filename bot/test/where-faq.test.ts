@@ -1,3 +1,4 @@
+import { mapsUrl } from "../src/format";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -36,17 +37,18 @@ describe("!where (R3)", () => {
   it("gives the next practice's place and a Google Maps link, for anyone", async () => {
     const text = await run("where");
     expect(text).toMatch(/^\*Thursday practice · .*\*\n.* · Riverside Park \(107th\) entrance at 103rd St & Riverside Dr\n/);
-    expect(text.split("\n")[2]).toBe("https://www.google.com/maps/search/?api=1&query=Riverside%20Park%20(107th)%20entrance%20at%20103rd%20St%20%26%20Riverside%20Dr");
+    expect(text.split("\n")[2]).toBe("https://maps.app.goo.gl/81h7ypVmi73kAEVT6"); // the field itself
+    expect(mapsUrl("Central Park, North Meadow")).toBe("https://www.google.com/maps/search/?api=1&query=Central%20Park%2C%20North%20Meadow");
   });
 
   it("is in !help and works with the read feature alone", async () => {
     expect(await commandsFor(data, ["read"]).run(parseCommand("help"), { asker: null, chatKey: "c|x" })).toEqual([{ quote: true, text: expect.stringMatching(/`!where`/) }]);
-    expect(await commandsFor(data, ["read"]).run(parseCommand("where"), { asker: null, chatKey: "c|x" })).toEqual([{ quote: true, text: expect.stringMatching(/google\.com\/maps/) }]);
+    expect(await commandsFor(data, ["read"]).run(parseCommand("where"), { asker: null, chatKey: "c|x" })).toEqual([{ quote: true, text: expect.stringMatching(/maps\.app\.goo\.gl\//) }]);
   });
 
   it("is a Gemini tool", async () => {
     const model: AiModel = { generate: async () => ({ call: { name: "where", args: {} } }) };
-    expect(await run("where do we play?", { ai: model })).toMatch(/google\.com\/maps/);
+    expect(await run("where do we play?", { ai: model })).toMatch(/maps\.app\.goo\.gl\//);
   });
 });
 
