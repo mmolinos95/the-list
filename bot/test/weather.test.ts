@@ -34,7 +34,7 @@ describe("practice weather (Open-Meteo)", () => {
     expect(await w.at("2026-11-20T16:00:00Z")).toBeNull();
     await w.at("2026-10-26T16:40:00Z");
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toMatch(/latitude=40\.7995&longitude=-73\.969/);
+    expect(calls[0]).toMatch(/latitude=40\.8025&longitude=-73\.968/);
     t += 31 * 60_000;
     await w.at("2026-10-26T16:40:00Z");
     expect(calls).toHaveLength(2);
