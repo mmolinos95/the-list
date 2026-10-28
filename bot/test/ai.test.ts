@@ -57,11 +57,12 @@ describe("Gemini (phase 5)", () => {
   });
 
   it("signs up through the same checks as !in", async () => {
-    const model = new FakeModel(() => ({ call: { name: "sign_up", args: { practice: ev.slug } } }));
-    expect(await free(model, "put me down for that one", "ana@example.com")).toMatch(/Which list\?/);
-    const both = new FakeModel(() => ({ call: { name: "sign_up", args: { practice: ev.slug, lists: "games" } } }));
-    expect(await free(both, "I'll play games", "ana@example.com")).toMatch(/You're in: \*Games\*/);
-    expect(await free(both, "I'll play games", null)).toMatch(/don't know your WhatsApp/);
+    const games = new FakeModel(() => ({ call: { name: "sign_up", args: { practice: ev.slug, lists: "games" } } }));
+    expect(await free(games, "I'll play games", "ana@example.com")).toMatch(/You're in: \*Games\*/);
+    expect(await free(games, "I'll play games", null)).toMatch(/don't know your WhatsApp/);
+    // No list named means every list.
+    const any = new FakeModel(() => ({ call: { name: "sign_up", args: { practice: ev.slug } } }));
+    expect(await free(any, "put me down for that one", "ana@example.com")).toMatch(/already on \*Skills\*[\s\S]*already on \*Games\*/);
   });
 
   it("doesn't offer board tools to members, and refuses them if asked anyway", async () => {

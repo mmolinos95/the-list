@@ -60,14 +60,21 @@ describe("!in (phase 3)", () => {
     ]);
   });
 
-  it("asks which list when there are several, and takes names or both", async () => {
+  it("signs up for every list when none is named, and takes list names or both", async () => {
     const ev = await practice(db, { startsIn: "2 days", lists: [{ name: "Skills", cap: 40 }, { name: "Games", cap: 40 }] });
     const day = ev.slug;
-    expect(await run(`in ${day}`, "ana@example.com")).toMatch(/Which list\? \*Skills\* \(.*\) or \*Games\* \(.*\)\.\nSend `!in \S+ skills`, `!in \S+ games` or `!in \S+ both`/);
     expect(await run(`in ${day} goalie`, "ana@example.com")).toMatch(/no list called "goalie"/);
-    expect(await run(`in ${day} games`, "ana@example.com")).toMatch(/You're in: \*Games\*/);
-    expect(await run(`in ${day} both`, "ben@example.com")).toMatch(/You're in: \*Skills\*.*\nYou're in: \*Games\*/);
-    expect((await spots(ev.id)).map((s) => `${s.email} ${s.list}`).sort()).toEqual(["ana@example.com Games", "ben@example.com Games", "ben@example.com Skills"]);
+    expect(await run(`in ${day} games`, "ana@example.com")).toMatch(/^You're in: \*Games\*, #1 of 40\.\n\n/);
+    expect(await run(`in ${day} both`, "ben@example.com")).toMatch(/^You're in: \*Skills\*.*\nYou're in: \*Games\*.*\n\n/);
+    const cy = await run(`in ${day}`, "cy@example.com");
+    expect(cy).toMatch(/^You're in: \*Skills\*, #2 of 40\.\nYou're in: \*Games\*, #3 of 40\.\n/);
+    expect(cy).toContain(`That's both lists. Only want one? Drop the other with \`!out ${day} skills\` or \`!out ${day} games\`.\n\n`);
+    // Already on Games: plain !in adds Skills too.
+    expect(await run(`in ${day}`, "ana@example.com")).toMatch(/^You're in: \*Skills\*, #3 of 40\.\nYou're already on \*Games\* \(#1 of 40\)\.\nThat's both lists/);
+    expect(await run(`in ${day}`, "ana@example.com")).toBe("You're already on *Skills* (#3 of 40).\nYou're already on *Games* (#1 of 40).");
+    expect((await spots(ev.id)).map((s) => `${s.email} ${s.list}`).sort()).toEqual([
+      "ana@example.com Games", "ana@example.com Skills", "ben@example.com Games", "ben@example.com Skills", "cy@example.com Games", "cy@example.com Skills",
+    ]);
   });
 
   it("creates the database row for a new member on their first sign-up", async () => {

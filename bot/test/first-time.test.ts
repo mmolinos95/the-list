@@ -47,13 +47,15 @@ describe("first-time sign-up by phone", () => {
     expect(await from(andres, "out")).toMatch(/^Done: you're off \*Games\*/);
   });
 
-  it("takes the name with a list, tidies lowercase names, and keeps the name in the 'which list' hint", async () => {
+  it("takes the name with a list or alone (every list), and tidies lowercase names", async () => {
     const ev = await practice(db, { startsIn: "2 days", lists: [{ name: "Skills", cap: 40 }, { name: "Games", cap: 40 }] });
     const sender = { ids: ["5552@lid"], phone: "+12125550162" };
-    expect(await from(sender, `in ${ev.slug} mary o'neil-diaz`)).toMatch(/Which list\? .*\nSend `!in \S+ Mary O'Neil-Diaz skills`, `!in \S+ Mary O'Neil-Diaz games` or `!in \S+ Mary O'Neil-Diaz both`/);
-    expect(await from(sender, `in ${ev.slug} mary o'neil-diaz games`)).toMatch(/^You're in: \*Games\*/);
+    expect(await from(sender, `in ${ev.slug} mary o'neil-diaz games`)).toMatch(/^You're in: \*Games\*, #1 of 40\.\nI'll know you/);
     expect(await from(sender, `in ${ev.slug} skills`)).toMatch(/^You're in: \*Skills\*/);
     expect(await membersWith(sender.phone)).toEqual([{ email: null, name: "Mary O'Neil-Diaz" }]);
+
+    const both = { ids: ["5560@lid"], phone: "+12125550172" };
+    expect(await from(both, `in ${ev.slug} Tom Ford`)).toMatch(/^You're in: \*Skills\*, #2 of 40\.\nYou're in: \*Games\*, #2 of 40\.\nThat's both lists\. Only want one\? Drop the other with `!out \S+ skills` or `!out \S+ games`\.\nI'll know you from now on/);
   });
 
   it("uses the website's record when the phone matches one", async () => {

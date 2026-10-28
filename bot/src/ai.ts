@@ -27,7 +27,7 @@ export interface AiModel {
 
 const PRACTICE = { type: "string", description: 'Which practice: its slug from the context (best), a weekday like "thu", a date like "10/23", "today", "tomorrow" or "next".' };
 const PRACTICE_OR_DEFAULT = { ...PRACTICE, description: `${PRACTICE.description} Leave out if the person didn't say: the bot then takes the open practice.` };
-const LISTS = { type: "string", description: 'List name(s), e.g. "games", or "both". Leave out if the person didn\'t say.' };
+const LISTS = { type: "string", description: 'List name(s), e.g. "games", or "both". Leave out if the person didn\'t say: !in then means every list.' };
 const obj = (properties: Record<string, unknown> = {}, required: string[] = []) => ({ type: "object", properties, required });
 
 type Tool = ToolDecl & { feature: Feature; board?: boolean; toCommand: (a: Record<string, string | boolean | undefined>) => Command };

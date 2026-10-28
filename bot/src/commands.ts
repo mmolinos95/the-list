@@ -215,7 +215,7 @@ export class Commands {
     ];
     if (has("signup"))
       lines.push(
-        "`!in` sign up for the open practice (or `!in thu [list]`)",
+        "`!in` sign up for the open practice, all its lists (`!in games` for just one, `!in thu` for another day)",
         "First time? Add your name once: `!in Firstname Lastname`",
         "`!out` drop out (or `!out thu [list]`)",
       );
@@ -298,8 +298,11 @@ export class Commands {
     if (p.stage === "cancelled") return reply(`${f.day(p)} is cancelled, so there's nothing to post.`);
     if (p.stage === "past") return reply(`${f.day(p)} is over.`);
     const secret = this.deps.dropLinkSecret;
+    // Plain "!in", "!out" and "!list" mean the first practice still to come, so the
+    // post leaves out the day when that's this one.
+    const first = (await this.deps.data.upcoming(this.now, 14)).find((x) => !x.event.cancelled_at);
     const text = inChat
-      ? chatPost(p.event, p.lists, this.now, secret ? signupUrl(secret, this.deps.siteUrl, p.event) : null)
+      ? chatPost(p.event, p.lists, first?.event.id === p.event.id ? "" : sel, secret ? signupUrl(secret, this.deps.siteUrl, p.event) : null)
       : sharePost(secret!, this.deps.siteUrl, p.event, p.lists);
     const out: Out[] = [{ text, quote: false }];
     if (p.stage === "waiting") {
@@ -324,7 +327,6 @@ export class Commands {
     if (!asker?.email && !phone) return reply(this.linkHelp());
     const p = await this.findOr(selector, (x) => x.stage === "open" || isNotOpenYet(x), "There's no upcoming practice to sign up for.");
     if (typeof p === "string") return reply(p);
-    const sel = selector || selectorFor(p.event.starts_at, this.now);
     const closed = this.closedFor(p, "sign up");
     if (closed) return reply(closed);
 
@@ -335,15 +337,12 @@ export class Commands {
     listText = given.lists;
     const again = asker?.name ? "" : ` ${name}`;
 
+    // No list named means every list: "!in" is both Skills and Games.
     let lists = p.lists;
-    if (p.lists.length > 1 || listText) {
+    if (listText) {
       const m = matchLists(listText, p.lists);
       if (m.unknown) return reply(`${f.day(p)} has no list called "${m.unknown}". Pick ${f.listChoices(p)}.`);
-      if (m.lists.length === 0) {
-        const names = p.lists.map((l) => `\`!in ${sel}${again} ${l.name.toLowerCase()}\``);
-        return reply(`Which list? ${f.listChoices(p)}.\nSend ${names.join(", ")} or \`!in ${sel}${again} both\`.`);
-      }
-      lists = m.lists;
+      if (m.lists.length) lists = m.lists;
     }
 
     const ids = lists.map((l) => l.id);
@@ -356,6 +355,10 @@ export class Commands {
       if (x.spot === "main") return `You're in: *${x.list}*, #${x.position} of ${x.cap}.`;
       return `*${x.list}* is full. You're #${x.position} on the waitlist and move up on your own if a spot opens before the lock.`;
     });
+    if (!listText && p.lists.length > 1 && r.results.some((x) => !x.already)) {
+      const outs = p.lists.map((l) => `\`!out ${selector ? `${selector} ` : ""}${l.name.toLowerCase()}\``);
+      lines.push(`That's ${p.lists.length === 2 ? "both lists" : `all ${p.lists.length} lists`}. Only want one? Drop the other with ${outs.join(" or ")}.`);
+    }
     if (again) lines.push("I'll know you from now on: next time, just `!in`.");
     if (r.results.every((x) => x.already)) return reply(lines.join("\n"));
     const items: ChangeItem[] = r.results

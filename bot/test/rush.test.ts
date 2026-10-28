@@ -90,13 +90,13 @@ describe("rush handling (R1)", () => {
     await practice(db, { lists: [{ name: "Skills", cap: 40 }, { name: "Games", cap: 40 }] });
     const chat = new FakeChat();
     const bot = botWith(chat);
-    const m = from(3, "!in");
+    const m = from(3, "!in goalie");
     await bot.handle(m);
-    expect(chat.out).toEqual([expect.objectContaining({ quotedId: m.id, text: expect.stringMatching(/^Which list\?/) })]);
-    await bot.handle(from(3, "!in both"));
+    expect(chat.out).toEqual([expect.objectContaining({ quotedId: m.id, text: expect.stringMatching(/no list called "goalie"/) })]);
+    await bot.handle(from(3, "!in"));
     await bot.handle(from(3, "!in both"));
     // "already on it" comes right away; the sign-up itself waits for the batch.
-    expect(chat.out.map((o) => o.text)).toEqual([expect.stringMatching(/^Which list/), expect.stringMatching(/already on \*Skills\*[\s\S]*already on \*Games\*/)]);
+    expect(chat.out.map((o) => o.text)).toEqual([expect.stringMatching(/no list called/), expect.stringMatching(/already on \*Skills\*[\s\S]*already on \*Games\*/)]);
     await clock.advance(5_000);
     expect(summaryOf(chat.out[2].text)).toBe("✅ In: Player 03 (Skills #1), Player 03 (Games #1)");
   });

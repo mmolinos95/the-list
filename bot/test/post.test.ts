@@ -44,16 +44,19 @@ describe("!post (phase 2)", () => {
     expect(out[0].quote).toBe(false);
     const lines = out[0].text.split("\n");
     expect(lines[0]).toMatch(/^List Sign Up: \d+\/\d+ \w+day Practice$/);
-    expect(lines).toContain(`*Sign up here:* send \`!in ${openDay}\``);
-    expect(lines).toContain(`One list only? \`!in ${openDay} skills\` · Both: \`!in ${openDay} both\``);
-    expect(lines).toContain(`Drop out: \`!out ${openDay}\` · Who's in: \`!list ${openDay}\``);
+    // The next practice, so the commands need no day.
+    expect(lines).toContain("*Sign up:* send `!in` for both lists");
+    expect(lines).toContain("Just one? `!in skills` or `!in games`");
+    expect(lines).toContain("First time? Add your name once: `!in Firstname Lastname`");
+    expect(lines).toContain("Drop out: `!out` · Who's in: `!list`");
     expect(lines.at(-1)).toBe(`Or on the web: https://list.example/p/${open.slug}?k=${signupKey("test-secret", open.slug)}`);
   });
 
   it("still posts the commands without a link secret, and says when !in will work", async () => {
     const cmds = commandsFor(data, ["read", "post", "signup"], { dropLinkSecret: null });
     const out = await cmds.run(parseCommand(`post ${waitingDay}`), { asker: await askerOf(data, "pres@example.com"), chatKey: "k" });
-    expect(out[0].text).toMatch(/Sign up here/);
+    // Not the next practice, so the commands name its day.
+    expect(out[0].text).toContain(`*Sign up:* send \`!in ${waitingDay}\`\nFirst time? Add your name once: \`!in ${waitingDay} Firstname Lastname\`\nDrop out: \`!out ${waitingDay}\` · Who's in: \`!list ${waitingDay}\``);
     expect(out[0].text).not.toMatch(/Or on the web/);
     expect(out[1].text).toMatch(/aren't open yet, so `!in` won't work until they open/);
   });
