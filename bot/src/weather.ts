@@ -4,7 +4,7 @@ import { toLocalInputs } from "../../src/lib/time";
 // Open-Meteo: free, no key, hourly forecasts up to 16 days ahead. Only the
 // field's coordinates are sent, nothing about members.
 
-export const RIVERSIDE_PARK = { lat: 40.7995, lon: -73.969 }; // 103rd St entrance
+export const RIVERSIDE_PARK = { lat: 40.8025, lon: -73.968 }; // 107th St entrance
 const CACHE_MS = 30 * 60_000;
 
 type Hourly = { time: string[]; temperature_2m: number[]; precipitation_probability: number[]; weather_code: number[]; wind_speed_10m: number[] };

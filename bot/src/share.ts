@@ -8,7 +8,7 @@ import { signupUrl } from "./links";
 //   List Sign Up: 10/9 Friday Practice
 //   Skills: 10:00 - 11:00 (40 players)
 //   Games: 11:00 - 12:00 (40 players)
-//   Location: Riverside Park (107th) entrance at 103rd St
+//   Location: Riverside Park, entrance at 107th St
 //   Sign up: https://…/p/2026-10-09-fri?k=…
 
 const hm = (iso: string) => toLocalInputs(iso).time;
@@ -35,7 +35,7 @@ export function sharePost(
  *
  *   List Sign Up: 10/26 Monday Practice
  *   Games: 12:40 - 13:40 (40 players)
- *   Location: Riverside Park (107th) entrance at 103rd St
+ *   Location: Riverside Park, entrance at 107th St
  *
  *   *Sign up here:* send `!in mon`
  *   First time? Add your name once: `!in mon Firstname Lastname`
