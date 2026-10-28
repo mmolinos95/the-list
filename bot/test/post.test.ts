@@ -39,7 +39,7 @@ describe("!post (phase 2)", () => {
     expect(out[0].text).toContain(`?k=${signupKey("test-secret", open.slug)}`);
   });
 
-  it("with sign-ups in WhatsApp on, posts the commands first and the link as a fallback", async () => {
+  it("with sign-ups in WhatsApp on, posts only the commands, with no web link", async () => {
     const out = await run(`post ${openDay}`, "pres@example.com", ["read", "post", "signup"]);
     expect(out[0].quote).toBe(false);
     const lines = out[0].text.split("\n");
@@ -49,7 +49,8 @@ describe("!post (phase 2)", () => {
     expect(lines).toContain("Just one? `!in skills` or `!in games`");
     expect(lines).toContain("First time? Add your name once: `!in Firstname Lastname`");
     expect(lines).toContain("Drop out: `!out` · Who's in: `!list`");
-    expect(lines.at(-1)).toBe(`Or on the web: https://list.example/p/${open.slug}?k=${signupKey("test-secret", open.slug)}`);
+    expect(lines.at(-1)).toBe("Drop out: `!out` · Who's in: `!list`");
+    expect(out[0].text).not.toMatch(/https?:/);
   });
 
   it("still posts the commands without a link secret, and says when !in will work", async () => {

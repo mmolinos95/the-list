@@ -11,7 +11,6 @@ import { matchLists, nameAndLists, pickPractice } from "./pick";
 import type { ChatMemory } from "./memory";
 import type { Weather } from "./weather";
 import { addQuietly, cancelQuietly, dropQuietly, signUpByPhoneQuietly, signUpQuietly, type Promotion } from "./quiet";
-import { signupUrl } from "./links";
 import { chatPost, selectorFor, sharePost } from "./share";
 
 // Runs a parsed command for someone. Every permission check lives here, so a
@@ -288,8 +287,8 @@ export class Commands {
   private async post(selector: string, req: Request): Promise<Out[]> {
     const who = this.needBoard(req);
     if (typeof who === "string") return reply(who);
-    // With sign-ups in WhatsApp on, the post is about the commands and the link is
-    // just a fallback; without them, it's the app's post, which needs the link.
+    // With sign-ups in WhatsApp on, the post is only the commands; without them,
+    // it's the app's post, which needs the link.
     const inChat = this.deps.features.has("signup");
     if (!inChat && !this.deps.dropLinkSecret) return reply("I can't make sign-up links: DROP_LINK_SECRET isn't set on the bot.");
     const p = await this.findOr(selector, (x) => x.stage === "open" || isNotOpenYet(x), "There's no upcoming practice to post.");
@@ -302,7 +301,7 @@ export class Commands {
     // post leaves out the day when that's this one.
     const first = (await this.deps.data.upcoming(this.now, 14)).find((x) => !x.event.cancelled_at);
     const text = inChat
-      ? chatPost(p.event, p.lists, first?.event.id === p.event.id ? "" : sel, secret ? signupUrl(secret, this.deps.siteUrl, p.event) : null)
+      ? chatPost(p.event, p.lists, first?.event.id === p.event.id ? "" : sel)
       : sharePost(secret!, this.deps.siteUrl, p.event, p.lists);
     const out: Out[] = [{ text, quote: false }];
     if (p.stage === "waiting") {

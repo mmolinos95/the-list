@@ -31,7 +31,7 @@ export function sharePost(
 
 /**
  * The post once members can sign up in WhatsApp: the same practice lines, then
- * the commands, with the web link only as a fallback at the end.
+ * the commands. No web link: members never need the site.
  *
  *   List Sign Up: 10/30 Friday Practice
  *   Skills: 10:00 - 11:00 (40 players)
@@ -42,7 +42,6 @@ export function sharePost(
  *   Just one? `!in skills` or `!in games`
  *   First time? Add your name once: `!in Firstname Lastname`
  *   Drop out: `!out` · Who's in: `!list`
- *   Or on the web: https://…/p/2026-10-30-fri?k=…
  *
  * `sel` is the day to put in the commands, or "" when plain `!in` already means
  * this practice.
@@ -51,7 +50,6 @@ export function chatPost(
   event: Pick<EventRow, "starts_at" | "location">,
   lists: Pick<EventList, "name" | "cap" | "starts_at" | "ends_at">[],
   sel: string,
-  link: string | null,
 ) {
   const { date } = toLocalInputs(event.starts_at);
   const [, month, day] = date.split("-").map(Number);
@@ -66,7 +64,6 @@ export function chatPost(
     ...(lists.length > 1 ? [`Just one? ${names.slice(0, -1).join(", ")} or ${names.at(-1)}`] : []),
     `First time? Add your name once: ${cmd("in", "Firstname Lastname")}`,
     `Drop out: ${cmd("out")} · Who's in: ${cmd("list")}`,
-    ...(link ? [`Or on the web: ${link}`] : []),
   ].join("\n");
 }
 
