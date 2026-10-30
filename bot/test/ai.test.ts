@@ -56,6 +56,14 @@ describe("Gemini (phase 5)", () => {
     expect(await free(model, "where am i on the list", "ana@example.com")).toMatch(/\*Your spots\*\n.*Skills: in \(#1 of 2\)/);
   });
 
+  it("lets the board remove someone by name, right away, and nobody else", async () => {
+    const remove = (name: string) => new FakeModel(() => ({ call: { name: "remove_player", args: { practice: ev.slug, name } } }));
+    // Not offered to members, so a member's request for it is refused before anything runs.
+    expect(await free(remove("Yu Waiting"), "take yu off the list", "ana@example.com")).toBe("Sorry, I can't do that. Try `!help`.");
+    expect(await free(remove(""), "take them off", "pres@example.com")).toMatch(/^Who should I take off\?/);
+    expect(await free(remove("yu waiting"), "take yu off the list", "pres@example.com")).toMatch(/^Removed \*Yu Waiting\* from \*Skills\*/);
+  });
+
   it("signs up through the same checks as !in", async () => {
     const games = new FakeModel(() => ({ call: { name: "sign_up", args: { practice: ev.slug, lists: "games" } } }));
     expect(await free(games, "I'll play games", "ana@example.com")).toMatch(/You're in: \*Games\*/);

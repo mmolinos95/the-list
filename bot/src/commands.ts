@@ -124,6 +124,7 @@ export const FEATURE_OF: Record<Command["kind"], Feature> = {
   open: "board",
   cancel: "board",
   add: "board",
+  remove: "board",
   teams: "board",
   // Deleting your data always works, whatever is switched on.
   forget: "read",
@@ -175,6 +176,8 @@ export class Commands {
         return this.write(() => this.cancel(cmd.practice, cmd.reason, cmd.confirm, req));
       case "add":
         return this.write(() => this.add(cmd.practice, cmd.rest, req));
+      case "remove":
+        return this.write(() => this.remove(cmd.practice, cmd.rest, req));
       case "teams":
         return this.write(() => this.teams(cmd.practice, req));
       case "forget":
@@ -408,6 +411,14 @@ export class Commands {
     const name = who.member?.name ?? who.name ?? "Someone";
     const items: ChangeItem[] = r.dropped.map((d) => ({ kind: "out", name, list: d.list, ...(d.late ? { late: true } : {}) }));
     return this.withPromotions(p, `Done: you're off ${names} for ${f.day(p)}.${tail}`, r.promoted, items);
+  }
+
+  /** Gemini's remove_player: never falls back to the asker's own !out, since no name means nobody to remove. */
+  private async remove(selector: string, rest: string, req: Request): Promise<Out[]> {
+    const who = this.needBoard(req);
+    if (typeof who === "string") return reply(who);
+    const r = rest.trim() ? await this.removeByName(selector, rest, who) : null;
+    return r ?? reply(`Who should I take off? \`!out ${selector || "thu"} Firstname Lastname\`.`);
   }
 
   /**

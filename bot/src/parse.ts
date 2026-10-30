@@ -17,6 +17,8 @@ export type Command =
   | { kind: "open"; practice: string }
   | { kind: "cancel"; practice: string; reason: string; confirm: boolean }
   | { kind: "add"; practice: string; rest: string }
+  /** The board takes someone else off: "Jane Doe [list]". Typed, it's "!out mon Jane Doe"; Gemini sends this kind. */
+  | { kind: "remove"; practice: string; rest: string }
   | { kind: "teams"; practice: string }
   /** Delete the asker's data. Only with confirm ("!forget yes") does it happen. */
   | { kind: "forget"; confirm: boolean }

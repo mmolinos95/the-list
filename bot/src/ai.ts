@@ -64,6 +64,14 @@ export const TOOLS: Tool[] = [
     ),
     toCommand: (a) => ({ kind: "add", practice: str(a.practice), rest: [str(a.name), str(a.list), a.waitlist === true ? "waitlist" : ""].filter(Boolean).join(" ") }),
   },
+  {
+    name: "remove_player",
+    feature: "board",
+    board: true,
+    description: "Board: take someone else off a practice's list by name (they're off right away; the waitlist moves up).",
+    parametersJsonSchema: obj({ practice: PRACTICE_OR_DEFAULT, name: { type: "string", description: "Their name as the board member said it." }, lists: LISTS }, ["name"]),
+    toCommand: (a) => ({ kind: "remove", practice: str(a.practice), rest: [str(a.name), str(a.lists)].filter(Boolean).join(" ") }),
+  },
   { name: "shuffle_teams", feature: "board", board: true, description: "Board: shuffle the teams for a practice and show them.", parametersJsonSchema: obj({ practice: PRACTICE }, ["practice"]), toCommand: (a) => ({ kind: "teams", practice: str(a.practice) }) },
 ];
 
