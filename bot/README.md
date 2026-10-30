@@ -65,6 +65,8 @@ The bot knows who's asking when:
 1. their WhatsApp ID is linked to an email (kept in the bot's local database), or
 2. WhatsApp shows their phone number and it matches a member's phone: the website's record (with an email) if there is one, else a member known only by phone. WhatsApp has verified that number, so it's proof enough, or
 3. **first time:** they send `!in Firstname Lastname` in the group (`!in thu Ana Diaz games` with a day and list). That signs them up by their WhatsApp phone, with no email, through the `sign_up_by_phone` database function (same rules as `sign_up`; added 2026-10-27, see `supabase/migrations/20261027000001_sign_up_by_phone.sql`). After that, plain `!in` works. The post and `!help` say so.
+
+**Board members without an email yet** are known by their WhatsApp phone: their `board_members` row has the placeholder email `whatsapp+15551234567@pending.invalid` (`phoneBoardEmail` in `identity.ts`). Once their real email is known, replace the placeholder in `board_members` and set it on their `members` row too.
 4. **Number hidden** (rare: every tester so far showed one): they link by DM instead. The bot replies with a `wa.me/<bot>?text=link` link, they send `link` in a DM, give their email, and type back the 6-digit code the bot emails them (10 minutes, at most 3 codes an hour). New members also give their name. Their phone is only ever the number WhatsApp shows, never a typed one.
 
 Members known only by phone get no emails (WhatsApp only, as for everyone the bot signs up) and drop out with `!out`. Someone who signed up on the website with a different phone gets a second member record; their sign-ups work the same.

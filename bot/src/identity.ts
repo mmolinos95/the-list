@@ -6,6 +6,11 @@ import type { LocalState } from "./state";
 // 2. a phone number WhatsApp shows (it's verified), matching members.phone,
 //    with or without an email (saved as a link, for @mentions);
 // 3. otherwise unknown: their first `!in First Last` signs them up by phone.
+// Board members without an email on file yet are known by phone: their board row
+// has the placeholder email below until the real one replaces it.
+
+/** The placeholder board email for someone known only by their WhatsApp phone. */
+export const phoneBoardEmail = (phone: string) => `whatsapp${phone}@pending.invalid`;
 
 export type Asker = {
   /** Null for members known only by their WhatsApp phone. */
@@ -27,13 +32,15 @@ export async function whoIs(ids: string[], phone: string | null, data: Data, sta
     const kind = ids.some((id) => id.endsWith("@lid")) ? "hidden ID" : "phone ID";
     console.log(`[${new Date().toISOString()}] New sender (${kind}): number ${phone ? "visible" : "NOT visible"}, ${member ? "member matched" : "no member match"}.`);
   }
+  const boardByPhone = async () => (byPhone ? data.boardMember(phoneBoardEmail(byPhone)) : null);
   if (member) {
     const known = { email: member.email, name: member.name, phone: member.phone ?? byPhone };
     if (!link || link.name !== member.name) state.saveLink(ids, known);
-    return { ...known, member, board: member.email ? await data.boardMember(member.email) : null };
+    return { ...known, member, board: (member.email ? await data.boardMember(member.email) : null) ?? (await boardByPhone()) };
   }
+  const board = await boardByPhone();
   // Known by phone before, but the 12-month cleanup removed the member: same name again.
-  if (link) return { email: null, name: link.name, phone: link.phone, member: null, board: null };
+  if (link || board) return { email: null, name: link?.name ?? board?.name ?? null, phone: byPhone, member: null, board };
   return null;
 }
 

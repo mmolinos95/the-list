@@ -670,10 +670,11 @@ export class Commands {
     return p ?? `I can't find a practice for "${selector}". Send \`!week\` to see what's coming up.`;
   }
 
-  /** The asker if they're on the board, or why not. Board members are known by email, so an unknown one links by DM. */
+  /** The asker if they're on the board, or why not. Board members are known by email (or a placeholder one for their phone); an unknown one links by DM. */
   needBoard(req: Request): Asker | string {
+    if (req.asker?.board) return req.asker;
     if (!req.asker?.email) return req.asker || req.phone ? `Only the board can do that. On the board? ${this.boardLinkHelp()}` : this.linkHelp();
-    return req.asker.board ? req.asker : "Only the board can do that.";
+    return "Only the board can do that.";
   }
 
   /** The asker, or what an unknown sender should do. */

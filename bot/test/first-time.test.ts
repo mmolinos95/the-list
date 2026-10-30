@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type { Commands } from "../src/commands";
 import type { Data } from "../src/data/types";
-import { whoIs } from "../src/identity";
+import { phoneBoardEmail, whoIs } from "../src/identity";
 import { parseCommand } from "../src/parse";
-import { commandsFor, dataFor, freshDb, member, memoryState, practice, type Db } from "./helpers";
+import { board, commandsFor, dataFor, freshDb, member, memoryState, practice, type Db } from "./helpers";
 
 // First-timers sign up in the group with "!in First Last": WhatsApp's verified
 // phone number identifies them, so no DM and no email.
@@ -128,5 +128,18 @@ describe("!forget", () => {
     expect(parseCommand("Forget yes")).toEqual({ kind: "forget", confirm: true });
     expect(parseCommand("delete me yes")).toEqual({ kind: "forget", confirm: true });
     expect(parseCommand("delete the post")).toEqual({ kind: "free", text: "delete the post" });
+  });
+});
+
+describe("board members known by phone", () => {
+  it("are board by their placeholder email before they have a real one, and sign up under the board name", async () => {
+    const ev = await practice(db, { startsIn: "8 days", opensIn: null });
+    const kim = { ids: ["5561@lid"], phone: "+12125550188" };
+    await board(db, phoneBoardEmail(kim.phone), "Kim Board");
+    expect(await from(kim, `open ${ev.slug}`)).toMatch(/^Sign-ups for .* are open/);
+    expect(await from(kim, `in ${ev.slug}`)).toMatch(/^You're in: \*Games\*/);
+    expect(await membersWith(kim.phone)).toEqual([{ email: null, name: "Kim Board" }]);
+    expect(await from(kim, "open")).not.toMatch(/Only the board/); // still board once she's a member
+    expect(await from({ ids: ["5562@lid"], phone: "+12125550189" }, `open ${ev.slug}`)).toMatch(/^Only the board can do that\. On the board\?/);
   });
 });
