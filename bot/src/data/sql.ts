@@ -53,6 +53,7 @@ export function sqlData(q: Query): Data {
     },
     cancelEvent: (eventId, reason, by) => value(`select cancel_event($1, $2, $3) as v`, [eventId, reason, by]),
     addSignup: (listId, name, spot, by) => value(`select add_signup($1, $2, null, null, $3::spot_kind, $4) as v`, [listId, name, spot, by]),
+    removeSignup: (signupId, by) => value(`select remove_signup($1, $2) as v`, [signupId, by]),
     async shuffleTeams(eventId) {
       await q(`select shuffle_teams($1)`, [eventId]);
     },
@@ -73,6 +74,7 @@ export function sqlData(q: Query): Data {
     cancelledAt: async (eventId) => (await first<{ v: string | null }>(`select cancelled_at::text as v from events where id = $1`, [eventId]))?.v ?? null,
     addedAt: async (signupId) =>
       (await first<{ v: string }>(`select m.created_at::text as v from signups s join members m on m.id = s.member_id where s.id = $1`, [signupId]))?.v ?? null,
+    removedAt: async (signupId) => (await first<{ v: string | null }>(`select removed_at::text as v from signups where id = $1`, [signupId]))?.v ?? null,
     async takeEmails({ eventId, kind, at, memberIds }) {
       if (memberIds && memberIds.length === 0) return [];
       const who = memberIds ? `member_id = any ($4::uuid[])` : `member_id is null`;

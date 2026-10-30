@@ -135,7 +135,7 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * "Ana Diaz both"). Text that is only lists has no name, and a name needs two words,
  * so "!in goalie" stays an unknown list.
  */
-export function nameAndLists(text: string, lists: ListInfo[]): { name: string | null; lists: string } {
+export function nameAndLists(text: string, lists: ListInfo[], minWords = 2): { name: string | null; lists: string } {
   const t = text.trim();
   if (!t || !matchLists(t, lists).unknown) return { name: null, lists: t };
   let words = t.split(/\s+/);
@@ -144,9 +144,12 @@ export function nameAndLists(text: string, lists: ListInfo[]): { name: string | 
   if (/^(both|all)$/i.test(words.at(-1)!)) tail = words.slice(-1);
   else if (named) tail = words.slice(-named.name.split(/\s+/).length);
   words = words.slice(0, words.length - tail.length);
-  if (words.length < 2 || words.join(" ").length > 60) return { name: null, lists: t };
+  if (words.length < minWords || words.join(" ").length > 60) return { name: null, lists: t };
   return { name: tidyName(words.join(" ")), lists: tail.join(" ") };
 }
 
 /** "ana o'neil" → "Ana O'Neil"; a name typed with capitals stays as typed. */
 const tidyName = (s: string) => (s === s.toLowerCase() ? s.replace(/(^|[\s'’-])(\p{L})/gu, (_, a: string, b: string) => a + b.toUpperCase()) : s);
+
+/** A name as people type it: no accents, case or extra spaces ("José  pérez" → "jose perez"). */
+export const plainName = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();

@@ -59,6 +59,8 @@ export interface Data {
   openEvent(eventId: string): Promise<void>;
   cancelEvent(eventId: string, reason: string, by: string): Promise<number>;
   addSignup(listId: string, name: string, spot: Spot, by: string): Promise<{ signup_id: string; spot: Spot }>;
+  /** remove_signup: the board takes someone off a list; a main-list spot fills from the waitlist. */
+  removeSignup(signupId: string, by: string): Promise<{ promoted: number }>;
   shuffleTeams(eventId: string): Promise<void>;
   /** Deletes a member; their sign-ups and queued emails go with them (on delete cascade). */
   deleteMember(memberId: string): Promise<void>;
@@ -75,6 +77,8 @@ export interface Data {
   cancelledAt(eventId: string): Promise<string | null>;
   /** created_at of the member a walk-in sign-up made: set by add_signup. */
   addedAt(signupId: string): Promise<string | null>;
+  /** signups.removed_at: set by remove_signup. */
+  removedAt(signupId: string): Promise<string | null>;
   /**
    * Deletes the not-yet-sent emails of one kind that one call queued (same
    * event, created_at = that call's time) for these members, or for rows with

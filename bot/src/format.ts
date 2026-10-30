@@ -1,4 +1,4 @@
-import { dayDate, relativeDay, timeRange } from "../../src/lib/time";
+import { dayDate, relativeDay, timeRange, toLocalInputs } from "../../src/lib/time";
 import { TEAM_LABEL, TEAMS } from "../../src/lib/types";
 import type { ListInfo, Practice } from "./data/types";
 
@@ -6,9 +6,14 @@ import type { ListInfo, Practice } from "./data/types";
 
 export const day = (p: Practice) => dayDate(p.event.starts_at); // "Thu, Oct 23"
 
-const listTime = (l: ListInfo) => timeRange(l.starts_at, l.ends_at);
+// Times in both styles, for members used to either: "12:40–1:40 PM (12:40–13:40)".
+const h24 = (iso: string) => toLocalInputs(iso).time;
+export const times = (startIso: string, endIso: string) => `${timeRange(startIso, endIso)} (${h24(startIso)}–${h24(endIso)})`;
+const when = (iso: string, now: Date) => `${relativeDay(iso, now)} (${h24(iso)})`;
 
-/** "Open · locks Thu at 5 PM", "Sign-ups open Wed at 9 AM", "Cancelled". */
+const listTime = (l: ListInfo) => times(l.starts_at, l.ends_at);
+
+/** "Open · locks Thu at 5 PM (17:00)", "Sign-ups open Wed at 9 AM (09:00)", "Cancelled". */
 export function stageLine(p: Practice, now: Date) {
   const e = p.event;
   switch (p.stage) {
@@ -21,9 +26,9 @@ export function stageLine(p: Practice, now: Date) {
     case "locked":
       return "Locked";
     case "open":
-      return `Open · locks ${relativeDay(e.locks_at, now)}`;
+      return `Open · locks ${when(e.locks_at, now)}`;
     case "soon":
-      return `Sign-ups open ${relativeDay(e.opens_at!, now)}`;
+      return `Sign-ups open ${when(e.opens_at!, now)}`;
     case "waiting":
       return "Sign-ups not open yet";
   }
@@ -39,7 +44,7 @@ export function listCount(l: ListInfo, short = false) {
 
 /** One practice in the "!week" overview. */
 export function overviewItem(p: Practice, now: Date) {
-  const head = `*${day(p)}* · ${timeRange(p.event.starts_at, p.event.ends_at)} · ${p.event.location}`;
+  const head = `*${day(p)}* · ${times(p.event.starts_at, p.event.ends_at)} · ${p.event.location}`;
   if (p.stage === "cancelled") return `${head}\n${stageLine(p, now)}`;
   return `${head}\n${p.lists.map((l) => listCount(l, true)).join(" · ")} · ${stageLine(p, now)}`;
 }
@@ -47,7 +52,7 @@ export function overviewItem(p: Practice, now: Date) {
 export function details(p: Practice, now: Date) {
   const lines = [
     `*${p.event.title} · ${day(p)}*`,
-    `${timeRange(p.event.starts_at, p.event.ends_at)} · ${p.event.location}`,
+    `${times(p.event.starts_at, p.event.ends_at)} · ${p.event.location}`,
     stageLine(p, now),
   ];
   if (p.stage !== "cancelled") {
@@ -59,7 +64,7 @@ export function details(p: Practice, now: Date) {
 
 /** The practice with everyone's names, for "!list" and after every change. */
 export function fullList(p: Practice, now: Date) {
-  const lines = [`*${p.event.title} · ${day(p)}*`, `${timeRange(p.event.starts_at, p.event.ends_at)} · ${p.event.location}`, stageLine(p, now)];
+  const lines = [`*${p.event.title} · ${day(p)}*`, `${times(p.event.starts_at, p.event.ends_at)} · ${p.event.location}`, stageLine(p, now)];
   if (p.stage === "cancelled") return lines.join("\n");
   const many = p.lists.length > 1;
   for (const l of p.lists) {

@@ -1,16 +1,15 @@
-import { timeRange } from "../../src/lib/time";
 import { ask, type AiModel } from "./ai";
 import type { Feature } from "./config";
-import type { Data, Practice } from "./data/types";
+import type { Data, ListInfo, Practice } from "./data/types";
 import * as f from "./format";
 import type { ChangeItem } from "./format";
 import type { Asker } from "./identity";
 import type { Command } from "./parse";
 import { linkUrl } from "./phone";
-import { matchLists, nameAndLists, pickPractice } from "./pick";
+import { matchLists, nameAndLists, pickPractice, plainName } from "./pick";
 import type { ChatMemory } from "./memory";
 import type { Weather } from "./weather";
-import { addQuietly, cancelQuietly, dropQuietly, signUpByPhoneQuietly, signUpQuietly, type Promotion } from "./quiet";
+import { addQuietly, cancelQuietly, dropQuietly, removeQuietly, signUpByPhoneQuietly, signUpQuietly, type Promotion } from "./quiet";
 import { chatPost, selectorFor, sharePost } from "./share";
 
 // Runs a parsed command for someone. Every permission check lives here, so a
@@ -227,6 +226,7 @@ export class Commands {
         lines.push(
           "`!open` open the next practice's sign-ups now (or `!open thu`)",
           "`!cancel thu [reason]` cancel (asks to confirm)",
+          "`!out thu Firstname Lastname` take someone off the list",
           "`!add thu Name [list] [waitlist]` add a walk-in",
           "`!teams thu` shuffle teams",
         );
@@ -268,7 +268,7 @@ export class Commands {
   private async where(selector: string): Promise<Out[]> {
     const p = await this.find(selector || "next");
     if (typeof p === "string") return reply(p);
-    const lines = [`*${p.event.title} · ${f.day(p)}*`, `${timeRange(p.event.starts_at, p.event.ends_at)} · ${p.event.location}`, f.mapsUrl(p.event.location)];
+    const lines = [`*${p.event.title} · ${f.day(p)}*`, `${f.times(p.event.starts_at, p.event.ends_at)} · ${p.event.location}`, f.mapsUrl(p.event.location)];
     if (p.stage === "cancelled") lines.push("_This practice is cancelled._");
     return reply(lines.join("\n"));
   }
@@ -368,6 +368,11 @@ export class Commands {
   }
 
   private async dropOut(selector: string, listText: string, confirm: boolean, req: Request): Promise<Out[]> {
+    // The board can take someone else off by name: "!out mon Jane Doe [list]".
+    if (req.asker?.board && listText) {
+      const removed = await this.removeByName(selector, listText, req.asker);
+      if (removed) return removed;
+    }
     const who = this.needMember(req);
     if (typeof who === "string") return reply(who);
     const onIt = (x: Practice) => x.stage !== "past" && x.stage !== "cancelled" && x.lists.some((l) => [...l.main, ...l.waitlist].some((s) => s.member_id === who.member?.id));
@@ -403,6 +408,46 @@ export class Commands {
     const name = who.member?.name ?? who.name ?? "Someone";
     const items: ChangeItem[] = r.dropped.map((d) => ({ kind: "out", name, list: d.list, ...(d.late ? { late: true } : {}) }));
     return this.withPromotions(p, `Done: you're off ${names} for ${f.day(p)}.${tail}`, r.promoted, items);
+  }
+
+  /**
+   * The board's "!out mon Jane Doe [list]", like the app's Remove button: takes that
+   * person off (every list they're on, unless lists are named) and the waitlist moves
+   * up. Null when the words are only list names, so it's the board member's own !out.
+   */
+  private async removeByName(selector: string, text: string, by: Asker): Promise<Out[] | null> {
+    const live = (x: Practice) => x.stage !== "past" && x.stage !== "cancelled";
+    const practices = selector ? [await this.find(selector)] : (await this.deps.data.upcoming(this.now, 14)).filter(live);
+    let named: { name: string; lists: ListInfo[] } | null = null;
+    for (const p of practices) {
+      if (typeof p === "string") return null; // no such practice: the usual !out says so
+      const given = nameAndLists(text, p.lists, 1);
+      if (!given.name) return null;
+      let lists = p.lists;
+      if (given.lists) {
+        const m = matchLists(given.lists, p.lists);
+        if (m.unknown) return reply(`${f.day(p)} has no list called "${m.unknown}". Pick ${f.listChoices(p)}.`);
+        lists = m.lists;
+      }
+      named = { name: given.name, lists };
+      const want = plainName(given.name);
+      const slots = lists.flatMap((l) => [...l.main, ...l.waitlist]);
+      // The full name, else everyone whose name has all the typed words.
+      let hits = slots.filter((s) => plainName(s.name) === want);
+      if (hits.length === 0) hits = slots.filter((s) => want.split(" ").every((w) => plainName(s.name).split(" ").includes(w)));
+      const people = [...new Map(hits.map((s) => [s.member_id, s.name])).values()];
+      if (people.length > 1) return reply(`More than one match on ${f.day(p)}: ${people.map((n) => `*${n}*`).join(", ")}. Send the full name.`);
+      if (people.length === 0) continue;
+      if (p.stage === "past" || p.stage === "cancelled") return reply(`${f.day(p)} is ${p.stage === "past" ? "over" : "cancelled"}.`);
+      const off = lists.filter((l) => [...l.main, ...l.waitlist].some((s) => s.member_id === hits[0].member_id));
+      const ids = off.flatMap((l) => [...l.main, ...l.waitlist].filter((s) => s.member_id === hits[0].member_id).map((s) => s.id));
+      const promoted = await removeQuietly(this.deps.data, p.event.id, ids, by.board!.id, this.now);
+      const items: ChangeItem[] = off.map((l) => ({ kind: "out", name: people[0], list: l.name }));
+      return this.withPromotions(p, `Removed *${people[0]}* from ${off.map((l) => `*${l.name}*`).join(" and ")} for ${f.day(p)}.`, promoted, items);
+    }
+    if (!named) return null;
+    const where = practices.length === 1 && typeof practices[0] !== "string" ? f.day(practices[0]) : "an upcoming list";
+    return reply(`Nobody called *${named.name}* is on ${where}${named.lists.length === 1 ? ` (*${named.lists[0].name}*)` : ""}.`);
   }
 
   /**

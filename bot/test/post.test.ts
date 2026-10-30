@@ -44,6 +44,8 @@ describe("!post (phase 2)", () => {
     expect(out[0].quote).toBe(false);
     const lines = out[0].text.split("\n");
     expect(lines[0]).toMatch(/^List Sign Up: \d+\/\d+ \w+day Practice$/);
+    // Times in both styles.
+    expect(lines[1]).toMatch(/^Skills: \d{1,2}(:\d\d)?( [AP]M)?–\d{1,2}(:\d\d)? [AP]M \(\d\d:\d\d–\d\d:\d\d\), 40 players$/);
     // The next practice, so the commands need no day.
     expect(lines).toContain("*Sign up:* send `!in` for both lists");
     expect(lines).toContain("Just one? `!in skills` or `!in games`");

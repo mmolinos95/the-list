@@ -92,3 +92,36 @@ describe("board commands (phase 4)", () => {
     expect(await run(`teams ${noTeams.slug}`)).toMatch(/no list that makes teams/);
   });
 });
+
+describe("!out <day> <name> from the board", () => {
+  it("takes that person off every list they're on, moves the waitlist up, and sends no emails", async () => {
+    const ev = await practice(db, { startsIn: "11 days", lists: [{ name: "Skills", cap: 40 }, { name: "Games", cap: 1 }] });
+    await dbSignUp(db, ev.id, [ev.lists.Skills, ev.lists.Games], "José Pérez", "jose@example.com");
+    await dbSignUp(db, ev.id, [ev.lists.Games], "Ana Diaz", "ana@example.com");
+    const out = await run(`out ${ev.slug} jose perez`);
+    expect(out).toMatch(/^Removed \*José Pérez\* from \*Skills\* and \*Games\* for .*\.\n⬆️ \*Ana Diaz\* moves up from the waitlist: in for \*Games\* \(#1 of 1\)\./);
+    expect(await one(`select removed_by from signups s join members m on m.id = s.member_id where m.email = 'jose@example.com' and s.status = 'removed' limit 1`, [])).toEqual({ removed_by: presId });
+    expect(await one(`select count(*)::int as n from emails where event_id = $1 and kind = 'promoted'`, [ev.id])).toEqual({ n: 0 });
+    expect(await run(`out ${ev.slug} José Pérez`)).toMatch(/^Nobody called \*José Pérez\* is on /);
+  });
+
+  it("takes one list when named, finds one-word and partial names, and asks when a name matches two people", async () => {
+    const ev = await practice(db, { startsIn: "12 days", lists: [{ name: "Skills", cap: 40 }, { name: "Games", cap: 40 }] });
+    await dbSignUp(db, ev.id, [ev.lists.Skills, ev.lists.Games], "Pelé", "pele@example.com");
+    await dbSignUp(db, ev.id, [ev.lists.Games], "Sam Lee", "sam1@example.com");
+    await dbSignUp(db, ev.id, [ev.lists.Games], "Sam Leeds", "sam2@example.com");
+    expect(await run(`out ${ev.slug} pele games`)).toMatch(/^Removed \*Pelé\* from \*Games\* for /);
+    expect(await run(`out ${ev.slug} sam`)).toMatch(/^More than one match on .*: \*Sam Lee\*, \*Sam Leeds\*\. Send the full name\.$/);
+    expect(await run(`out ${ev.slug} sam leeds`)).toMatch(/^Removed \*Sam Leeds\* from \*Games\*/);
+    expect(await run(`out ${ev.slug} pele goalie`)).toMatch(/^Nobody called \*Pele Goalie\* is on /);
+  });
+
+  it("is still a board member's own !out for list names, and not for anyone else", async () => {
+    const ev = await practice(db, { startsIn: "13 days", lists: [{ name: "Skills", cap: 40 }, { name: "Games", cap: 40 }] });
+    await dbSignUp(db, ev.id, [ev.lists.Games], "Pat President", "pres@example.com");
+    await dbSignUp(db, ev.id, [ev.lists.Games], "Ana Diaz", "ana@example.com", "+12125550191");
+    expect(await run(`out ${ev.slug} games`)).toMatch(/^Done: you're off \*Games\*/);
+    expect(await run(`out ${ev.slug} pat president`, "ana@example.com")).toMatch(/no list called/);
+    expect(await run(`out ${ev.slug} Ana Diaz`, "ana@example.com")).toMatch(/no list called/);
+  });
+});

@@ -69,6 +69,17 @@ export async function cancelQuietly(data: Data, eventId: string, reason: string,
   return n;
 }
 
+/** remove_signup for each of these sign-ups, without the promotion emails it caused. */
+export async function removeQuietly(data: Data, eventId: string, signupIds: string[], by: string, now: Date) {
+  const before = await data.practice(eventId, now);
+  for (const id of signupIds) {
+    await data.removeSignup(id, by);
+    const at = await data.removedAt(id);
+    if (at) await data.takeEmails({ eventId, kind: "promoted", at, memberIds: memberIds(await data.practice(eventId, now), "main") });
+  }
+  return promotions(data, before, await data.practice(eventId, now));
+}
+
 /** add_signup for a walk-in (no email, so no confirmation), without any promotion emails it caused. */
 export async function addQuietly(data: Data, eventId: string, listId: string, name: string, spot: Spot, by: string, now: Date) {
   const before = await data.practice(eventId, now);

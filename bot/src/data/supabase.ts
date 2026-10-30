@@ -55,6 +55,7 @@ export function supabaseData(url: string, secretKey: string): Data {
     openEvent: (eventId) => rpc("open_event", { p_event: eventId }),
     cancelEvent: (eventId, reason, by) => rpc("cancel_event", { p_event: eventId, p_reason: reason, p_by: by }),
     addSignup: (listId, name, spot, by) => rpc("add_signup", { p_list: listId, p_name: name, p_email: null, p_phone: null, p_spot: spot, p_by: by }),
+    removeSignup: (signupId, by) => rpc("remove_signup", { p_signup: signupId, p_by: by }),
     shuffleTeams: (eventId) => rpc("shuffle_teams", { p_event: eventId }),
     async deleteMember(memberId) {
       check(await db.from("members").delete().eq("id", memberId));
@@ -82,6 +83,9 @@ export function supabaseData(url: string, secretKey: string): Data {
     async addedAt(signupId) {
       const row = check(await db.from("signups").select("members(created_at)").eq("id", signupId).maybeSingle());
       return (row?.members as unknown as { created_at: string } | null)?.created_at ?? null;
+    },
+    async removedAt(signupId) {
+      return check(await db.from("signups").select("removed_at").eq("id", signupId).maybeSingle())?.removed_at ?? null;
     },
     async takeEmails({ eventId, kind, at, memberIds }) {
       if (memberIds && memberIds.length === 0) return [];

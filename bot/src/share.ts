@@ -1,5 +1,6 @@
 import { toLocalInputs, weekdayLong, weekdayShort } from "../../src/lib/time";
 import type { EventList, EventRow } from "./data/types";
+import { times } from "./format";
 import { signupUrl } from "./links";
 
 // The board's WhatsApp post, re-implemented from src/lib/share.ts (which
@@ -34,8 +35,8 @@ export function sharePost(
  * the commands. No web link: members never need the site.
  *
  *   List Sign Up: 10/30 Friday Practice
- *   Skills: 10:00 - 11:00 (40 players)
- *   Games: 11:00 - 12:00 (40 players)
+ *   Skills: 10–11 AM (10:00–11:00), 40 players
+ *   Games: 11 AM–12 PM (11:00–12:00), 40 players
  *   Location: Riverside Park, entrance at 107th St
  *
  *   *Sign up:* send `!in` for both lists
@@ -57,7 +58,7 @@ export function chatPost(
   const names = lists.map((l) => cmd("in", l.name.toLowerCase()));
   return [
     `List Sign Up: ${month}/${day} ${weekdayLong(event.starts_at)} Practice`,
-    ...lists.map((l) => `${l.name}: ${hm(l.starts_at)} - ${hm(l.ends_at)} (${l.cap} players)`),
+    ...lists.map((l) => `${l.name}: ${times(l.starts_at, l.ends_at)}, ${l.cap} players`),
     `Location: ${event.location}`,
     "",
     lists.length > 1 ? `*Sign up:* send ${cmd("in")} for ${lists.length === 2 ? "both lists" : "every list"}` : `*Sign up:* send ${cmd("in")}`,
